@@ -1,0 +1,68 @@
+# ══════════════════════════════════════════════════════════
+# YT-Replicator — ignore rules
+#
+# These rules were planned in writing by the legacy build order and never
+# applied, which is why secrets and live data sit in the working tree today
+# (defects D-12, D-20, D-25). They are applied here, before the first commit.
+# ══════════════════════════════════════════════════════════
+
+# ── Secrets ────────────────────────────────────────────────────
+# Never commit. The encryption key must be backed up OUTSIDE git, with the
+# database — not in it (D13).
+.env
+*.env
+local_settings.py
+*.pem
+*.key
+secrets/
+cookies/
+cookies.txt
+
+# Legacy credential exports: these JSON files contain OAuth access tokens
+# and refresh tokens (defect D-22). A refresh token does not expire.
+project003_bundle/docs/Export-Import/*-export-*.json
+
+# ── Databases and runtime state ────────────────────────────────
+# db/app.db carries plaintext OAuth tokens from the legacy (D-11).
+db/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite3
+
+# ── Generated files, caches, tests ─────────────────────────────
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ── Virtual environments ──────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── Runtime output ────────────────────────────────────────────
+# Media is a cache, not a record (INV-2 / P2): re-downloadable, so not tracked.
+downloads/
+media/
+logs/
+*.part
+*.log
+*.pid
+
+# ── Archives and backups in the legacy tree ────────────────────
+# The bundle is an archive; the archive's own backups and caches are not.
+*.zip
+*.bak
+*.json-backup
+*_backup_*
+
+# ── Editors and OS ────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
