@@ -8,6 +8,24 @@ session's reading load small and its change isolated.
 
 ---
 
+## 0. Status
+
+Updated at the end of every unit. A unit is only listed once its §4 checklist
+holds.
+
+| Unit | State | Evidence |
+|---|---|---|
+| **U00** | **complete** | commits `8b3e5d8` (`.gitignore`, `LEGACY.md`), `f5bef8d` (docs), `434b21d` (legacy archive). 244 tracked files, working tree clean, zero forbidden paths in the index, and no token pattern in any committed file. |
+| U01–U25 | not started | — |
+
+**Next unit: U01 — `core`.**
+
+> Security note carried from U00: a credential export containing 22 OAuth
+> refresh tokens sits in `project003_bundle/docs/Export-Import/` and is excluded
+> by `.gitignore`. It has never been committed. See `LEGACY.md` rule 5.
+
+---
+
 ## 1. How to use this file
 
 1. Pick the next unfinished unit from the table.
