@@ -1,0 +1,21 @@
+{
+  "channels": {
+    "UCxxxxxxxxxxxxxxxxxx": {
+      "name": "Source Channel Name",
+      "url": "https://youtube.com/@SourceChannelHandle",
+      "auto_download": true,
+
+      "daily_upload_limit": 10,
+
+      "backfill_complete": false,
+      "backfill_queue": [],
+      "backfill_entry_map": {},
+
+      "uploads_today": 0,
+      "uploads_today_date": null,
+
+      "videos_seen": [],
+      "last_check": null
+    }
+  }
+}

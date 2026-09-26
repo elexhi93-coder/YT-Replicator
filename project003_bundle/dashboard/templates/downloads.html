@@ -1,0 +1,811 @@
+{% extends "base.html" %}
+{% block title %}Downloads — project003{% endblock %}
+
+{% block head_extra %}
+<style>
+  .subtab {
+    color: #c9d1d9;
+    padding: 0.5rem 0.25rem;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s ease, border-color 0.15s ease;
+    text-decoration: none;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .subtab:hover { color: #ffffff; }
+  .subtab.active {
+    color: #ffffff;
+    border-bottom-color: #1f6feb;
+  }
+  .dl-panel { display: none; }
+  .dl-panel.active { display: block; }
+  .dl-toolbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem;
+    padding: 0.5rem 0; margin-bottom: 1rem;
+    border-bottom: 1px solid #21262d;
+  }
+  .dl-input, .dl-select {
+    background: #0d1117; color: #e6edf3; border: 1px solid #30363d;
+    border-radius: 4px; padding: 0.3rem 0.55rem; font-size: 0.75rem;
+  }
+  .dl-input:focus, .dl-select:focus {
+    outline: none; border-color: #58a6ff;
+  }
+  .dl-btn {
+    background: #21262d; color: #c9d1d9; border: 1px solid #30363d;
+    border-radius: 4px; padding: 0.3rem 0.7rem; font-size: 0.75rem;
+    cursor: pointer; font-weight: 500;
+  }
+  .dl-btn:hover { background: #30363d; color: #ffffff; }
+  .dl-btn-primary { background: #1f6feb; color: #ffffff; border-color: #388bfd; }
+  .dl-btn-primary:hover { background: #388bfd; }
+  .dl-btn-success { background: #238636; color: #ffffff; border-color: #2ea043; }
+  .dl-btn-success:hover { background: #2ea043; }
+  .dl-meta { font-size: 0.7rem; color: #8b949e; }
+  .dl-meta strong { color: #e6edf3; font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- ── Page header (single row, no clutter) ─────────────────── -->
+<div class="flex items-center gap-4 mb-2">
+  <h1 class="text-2xl font-bold text-white">Downloads</h1>
+  <div id="downloads-stats-bar"
+       hx-get="/partials/downloads/stats"
+       hx-trigger="load, every 30s"
+       hx-swap="innerHTML"
+       class="flex-1 flex items-center gap-3">
+    <span class="dl-meta">loading stats…</span>
+  </div>
+</div>
+
+<!-- ── Sub-tabs (styled identically to main nav) ─────────────── -->
+<nav class="flex items-center gap-6 text-sm border-b mb-5"
+     style="border-color:#30363d;"
+     aria-label="Downloads sections">
+  <a id="subtab-queue"   class="subtab active" data-tab="queue">Queue</a>
+  <a id="subtab-videos"  class="subtab"        data-tab="videos">Videos</a>
+  <a id="subtab-monitor" class="subtab"        data-tab="monitor">Monitor</a>
+  <a id="subtab-files"   class="subtab"        data-tab="files">Files</a>
+</nav>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- TAB 1: QUEUE — pick channels and queue downloads             -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<section id="panel-queue" class="dl-panel active">
+
+  <div class="dl-toolbar">
+    <input id="downloads-channel-search"
+           type="text"
+           placeholder="🔍  Find channel…"
+           class="dl-input flex-1 min-w-[220px]" />
+
+    <select id="downloads-priority-filter" class="dl-select">
+      <option value="all">all priorities</option>
+      <option value="high">high (1-25)</option>
+      <option value="normal">normal (26-100)</option>
+      <option value="low">low (101+)</option>
+    </select>
+
+    <form method="get" action="/downloads" class="flex items-center gap-1">
+      <select name="pipeline_id" class="dl-select" onchange="this.form.submit()">
+        <option value="">all pipelines</option>
+        {% for p in pipelines %}
+          <option value="{{ p.id }}" {% if selected_pipeline_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+        {% endfor %}
+      </select>
+      {% if selected_pipeline_id %}
+        <a href="/downloads#queue" class="dl-btn">clear</a>
+      {% endif %}
+    </form>
+
+    <span class="dl-meta ml-auto">
+      <strong id="downloads-visible-count">0</strong> visible ·
+      <strong id="downloads-selected-count">0</strong> selected
+    </span>
+
+    <button id="downloads-clear-search" type="button" class="dl-btn">Reset</button>
+    <button id="downloads-queue-selected" type="button" class="dl-btn dl-btn-primary">
+      ▶ Queue selected
+    </button>
+  </div>
+
+  <details class="mb-4 text-xs" style="color:#8b949e;">
+    <summary class="cursor-pointer select-none" style="color:#58a6ff;">
+      Advanced — bulk apply count, order, presets
+    </summary>
+    <div class="mt-3 p-3 rounded flex flex-wrap items-end gap-3"
+         style="background:#0d1117;border:1px solid #21262d;">
+      <label class="flex flex-col gap-1">
+        Queue count
+        <input id="downloads-default-count" type="number" min="1" max="500" value="5"
+               class="dl-input w-24" />
+      </label>
+      <label class="flex flex-col gap-1">
+        Order
+        <select id="downloads-default-direction" class="dl-select">
+          <option value="newest">↓ newest first</option>
+          <option value="oldest">↑ oldest first</option>
+        </select>
+      </label>
+      <label class="flex flex-col gap-1">
+        Card sort
+        <select id="downloads-card-sort" class="dl-select">
+          <option value="backend">backend order</option>
+          <option value="priority-asc">priority: high → low</option>
+          <option value="priority-desc">priority: low → high</option>
+          <option value="name">name A-Z</option>
+        </select>
+      </label>
+      <label class="flex items-center gap-2 pb-1">
+        <input id="downloads-active-priority-only" type="checkbox" style="accent-color:#238636;" />
+        active priority only
+      </label>
+
+      <div class="flex items-center gap-1 ml-auto">
+        <span class="dl-meta">presets:</span>
+        <button type="button" class="downloads-preset-count dl-btn" data-count="5">5</button>
+        <button type="button" class="downloads-preset-count dl-btn" data-count="10">10</button>
+        <button type="button" class="downloads-preset-count dl-btn" data-count="20">20</button>
+        <button id="downloads-apply-defaults" type="button" class="dl-btn dl-btn-success ml-2">
+          Apply to visible
+        </button>
+        <button id="downloads-select-visible" type="button" class="dl-btn">Select visible</button>
+      </div>
+    </div>
+  </details>
+
+  <div id="downloads-sources"
+       hx-get="/partials/downloads/sources{% if selected_pipeline_id %}?pipeline_id={{ selected_pipeline_id }}{% endif %}"
+       hx-trigger="load, every 90s"
+       hx-swap="innerHTML">
+    <p class="dl-meta">Loading channels…</p>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- TAB 2: VIDEOS — browse videos of a channel + per-video download    -->
+<!-- ═════════════════════════════════════════════════════════════ -->
+<section id="panel-videos" class="dl-panel">
+
+  <div class="dl-toolbar">
+    <label class="dl-meta flex items-center gap-2">
+      Channel:
+      <select id="vid-channel-select" class="dl-select" style="min-width:240px;">
+        <option value="">— pick a channel —</option>
+        {% for ch in channels %}
+          <option value="{{ ch.id }}"
+                  data-name="{{ ch.name }}"
+                  data-pipeline="{{ ch.pipeline_id or '' }}">
+            {{ ch.name }}
+            {% if ch.pipeline_name %} · {{ ch.pipeline_name }}{% endif %}
+          </option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="dl-meta flex items-center gap-2">
+      Order:
+      <select id="vid-order" class="dl-select">
+        <option value="newest">↓ newest first</option>
+        <option value="oldest">↑ oldest first</option>
+      </select>
+    </label>
+
+    <span class="dl-meta">
+      Batch:
+      <input id="vid-batch-count" type="number" min="1" max="500" value="5"
+             class="dl-input w-20" />
+    </span>
+
+    <button id="vid-batch-btn" type="button" class="dl-btn dl-btn-success" disabled>
+      ▶ Download next N
+    </button>
+
+    <button id="vid-refresh-btn" type="button" class="dl-btn ml-auto" disabled>
+      ↻ Refresh
+    </button>
+  </div>
+
+  <div id="vid-batch-status" class="dl-meta mb-2" style="min-height:1em;"></div>
+
+  <div id="downloads-channel-videos">
+    <p class="dl-meta">Pick a channel above to see its videos.</p>
+  </div>
+</section>
+
+<!-- ═════════════════════════════════════════════════════════════ -->
+<!-- TAB 3: MONITOR — watch live + jobs                           -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<section id="panel-monitor" class="dl-panel">
+
+  <div class="dl-toolbar">
+    <label class="dl-meta flex items-center gap-2">
+      Workers:
+      <select id="live-workers-select"
+              name="live-workers-select"
+              class="dl-select"
+              hx-post="/api/settings/download-workers"
+              hx-trigger="change"
+              hx-include="this"
+              hx-swap="none">
+        <option value="1" {% if download_workers == 1 %}selected{% endif %}>1 (serial)</option>
+        <option value="2" {% if download_workers == 2 or not download_workers %}selected{% endif %}>2 parallel</option>
+        <option value="3" {% if download_workers == 3 %}selected{% endif %}>3 parallel</option>
+        <option value="4" {% if download_workers == 4 %}selected{% endif %}>4 parallel</option>
+        <option value="5" {% if download_workers == 5 %}selected{% endif %}>5 parallel</option>
+        <option value="6" {% if download_workers == 6 %}selected{% endif %}>6 parallel</option>
+        <option value="7" {% if download_workers == 7 %}selected{% endif %}>7 parallel</option>
+        <option value="8" {% if download_workers == 8 %}selected{% endif %}>8 parallel</option>
+        <option value="9" {% if download_workers == 9 %}selected{% endif %}>9 parallel</option>
+        <option value="10" {% if download_workers == 10 %}selected{% endif %}>10 parallel</option>
+      </select>
+    </label>
+
+    {# ── Global pause/resume toggle ─────────────────────────────────── #}
+    <div id="global-pause-ctrl">
+      {% if queue_paused %}
+      <button class="dl-btn"
+              style="background:#1c3d1c;border:1px solid #3fb950;color:#3fb950;font-weight:600;"
+              hx-post="/api/downloads/resume"
+              hx-swap="none"
+              hx-on::after-request="document.getElementById('downloads-active').dispatchEvent(new Event('manual-refresh'))"
+              title="Downloads are PAUSED. Click to resume.">
+        ▶ Resume downloads
+      </button>
+      {% else %}
+      <button class="dl-btn"
+              style="background:#2c1c1c;border:1px solid #f85149;color:#f85149;font-weight:600;"
+              hx-post="/api/downloads/pause"
+              hx-swap="none"
+              hx-on::after-request="document.getElementById('downloads-active').dispatchEvent(new Event('manual-refresh'))"
+              title="Click to pause all downloads. Running downloads will finish; no new ones will start.">
+        ⏸ Pause downloads
+      </button>
+      {% endif %}
+    </div>
+
+    <label class="dl-meta flex items-center gap-2">
+      Refresh:
+      <select id="live-interval-select" class="dl-select">
+        <option value="0">manual</option>
+        <option value="10">10s</option>
+        <option value="30">30s</option>
+        <option value="60" selected>1 min</option>
+        <option value="300">5 min</option>
+      </select>
+    </label>
+
+    <div class="ml-auto flex items-center gap-2">
+      <button class="dl-btn"
+              onclick="document.getElementById('downloads-live').dispatchEvent(new Event('manual-refresh'))">
+        ↻ Refresh live
+      </button>
+      <button class="dl-btn"
+              hx-get="/partials/downloads/jobs"
+              hx-target="#downloads-jobs"
+              hx-swap="innerHTML">
+        ↻ Refresh jobs
+      </button>
+    </div>
+  </div>
+
+  <h2 class="text-sm font-semibold mb-2" style="color:#c9d1d9;">Now downloading</h2>
+  <div class="rounded-md border p-3 mb-5"
+       style="background:#0d1117;border-color:#21262d;">
+    <div id="downloads-active"
+         hx-get="/partials/downloads/tick"
+         hx-trigger="load, every 5s, manual-refresh from:#downloads-live"
+         hx-swap="innerHTML">
+      <p class="dl-meta">Loading…</p>
+    </div>
+  </div>
+
+  <details class="mb-4">
+    <summary class="text-xs cursor-pointer" style="color:#8b949e;">
+      Show legacy "Live workers" panel (raw download_queue view)
+    </summary>
+    <div class="rounded-md border p-3 mt-2"
+         style="background:#0d1117;border-color:#21262d;">
+      <div id="downloads-live"
+           hx-get="/partials/downloads/live"
+           hx-trigger="revealed, manual-refresh"
+           hx-swap="innerHTML">
+        <p class="dl-meta">Loading…</p>
+      </div>
+    </div>
+  </details>
+
+  <h2 class="text-sm font-semibold mb-2" style="color:#c9d1d9;">Active + recent jobs</h2>
+  <div id="downloads-jobs"
+       hx-get="/partials/downloads/jobs"
+       hx-trigger="load"
+       hx-swap="innerHTML">
+    <p class="dl-meta">Loading jobs…</p>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- TAB 3: FILES — browse downloads + storage settings           -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<section id="panel-files" class="dl-panel">
+
+  <div class="dl-toolbar">
+    <span class="dl-meta">
+      Root: <code style="color:#e6edf3;">{{ downloads_root_effective }}</code>
+      {% if downloads_root_effective_exists %}
+        <span style="color:#3fb950;">● ok</span>
+      {% else %}
+        <span style="color:#d29922;">● not visible</span>
+      {% endif %}
+    </span>
+    <button class="dl-btn ml-auto"
+            hx-get="/partials/downloads/files"
+            hx-target="#downloads-files"
+            hx-swap="innerHTML">
+      ↻ Refresh files
+    </button>
+  </div>
+
+  <div id="downloads-files"
+       hx-get="/partials/downloads/files"
+       hx-trigger="load"
+       hx-swap="innerHTML"
+       class="mb-6">
+    <p class="dl-meta">Loading files…</p>
+  </div>
+
+  <details class="rounded-md border" style="border-color:#30363d;">
+    <summary class="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
+             style="background:#161b22;border-radius:inherit;list-style:none;">
+      <span class="text-sm font-semibold text-white">⚙ Storage location settings</span>
+      <a href="/docs/external-storage" target="_blank"
+         class="text-xs underline" style="color:#58a6ff;"
+         onclick="event.stopPropagation()">Guide ↗</a>
+    </summary>
+    <div class="p-4" style="background:#0d1117;border-top:1px solid #30363d;">
+      <div class="text-xs mb-3" style="color:#8b949e;">
+        Downloads are organized as
+        <code style="color:#e6edf3;">&lt;root&gt;/&lt;ChannelName&gt;/&lt;video_id&gt;/&lt;title&gt;.mp4</code>.
+        Default <code>{{ downloads_root_default }}</code> is bind-mounted via <code>DOWNLOADS_PATH</code>.
+      </div>
+
+      <div class="text-xs mb-3 p-2 rounded" style="background:#161b22;border:1px solid #30363d;">
+        <div style="color:#8b949e;">Mount diagnostics:</div>
+        <div class="mt-1 grid gap-1" style="grid-template-columns: repeat(auto-fit,minmax(220px,1fr));">
+          {% for d in host_mount_diagnostics %}
+            <div class="px-2 py-1 rounded font-mono" style="background:#0d1117;border:1px solid #21262d;">
+              <span style="color:#8b949e;">{{ d.path }}</span>
+              {% if d.status == 'ok' %}
+                <span style="color:#3fb950;"> ● {{ d.detail }}</span>
+              {% elif d.status == 'warn' %}
+                <span style="color:#d29922;"> ● {{ d.detail }}</span>
+              {% else %}
+                <span style="color:#f85149;"> ● {{ d.detail }}</span>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <form hx-post="/api/settings/downloads-root"
+            hx-target="#downloads-root-status"
+            hx-swap="innerHTML"
+            class="flex flex-wrap items-end gap-2">
+        <label class="text-xs flex flex-col gap-1 flex-1 min-w-[280px]" style="color:#8b949e;">
+          Override path (inside watcher container)
+          <input type="text" name="downloads_root"
+                 value="{{ downloads_root_override }}"
+                 placeholder="e.g. /external/media or empty for default"
+                 class="dl-input font-mono" />
+        </label>
+        <button type="button" onclick="openFolderBrowser()" class="dl-btn">Browse…</button>
+        <button type="submit" class="dl-btn dl-btn-success">Save</button>
+      </form>
+      <div id="downloads-root-status"></div>
+
+      <div class="mt-3 flex flex-wrap items-center gap-2 text-xs" style="color:#8b949e;">
+        <span>Quick:</span>
+        <button type="button" class="dl-btn font-mono"
+                onclick="document.querySelector('input[name=downloads_root]').value='/downloads';">
+          /downloads
+        </button>
+        {% for loc in quick_locations %}
+          {% if loc.path not in ('/downloads', '/') %}
+            <button type="button" class="dl-btn font-mono"
+                    onclick="document.querySelector('input[name=downloads_root]').value='{{ loc.path }}';"
+                    title="{{ loc.label }}">
+              {{ loc.path }}
+            </button>
+          {% endif %}
+        {% endfor %}
+        <button type="button" class="dl-btn"
+                onclick="document.querySelector('input[name=downloads_root]').value='';">
+          Clear
+        </button>
+      </div>
+    </div>
+  </details>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- Folder Browser Modal                                          -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<div id="folder-browser-overlay"
+     onclick="if(event.target===this)closeFolderBrowser()"
+     style="display:none;position:fixed;inset:0;z-index:9999;
+            background:rgba(0,0,0,0.75);backdrop-filter:blur(2px);
+            align-items:center;justify-content:center;">
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;
+              width:min(680px,95vw);max-height:82vh;display:flex;flex-direction:column;
+              box-shadow:0 24px 64px rgba(0,0,0,0.7);overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                padding:14px 18px;border-bottom:1px solid #30363d;">
+      <span style="color:#e6edf3;font-size:13px;font-weight:600;">📁 Select Folder</span>
+      <button onclick="closeFolderBrowser()"
+              style="background:none;border:none;color:#8b949e;font-size:20px;
+                     cursor:pointer;line-height:1;padding:2px 8px;">&times;</button>
+    </div>
+    <div id="storage-browser" style="flex:1;overflow-y:auto;padding:14px 18px;min-height:200px;">
+      <p style="color:#8b949e;font-size:12px;">Loading…</p>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                padding:12px 18px;border-top:1px solid #30363d;background:#0d1117;">
+      <span style="color:#8b949e;font-size:11px;">
+        Click a folder to navigate · click <strong style="color:#3fb950;">✓ Use this folder</strong> to select
+      </span>
+      <button onclick="closeFolderBrowser()" class="dl-btn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<!-- Scripts                                                      -->
+<!-- ════════════════════════════════════════════════════════════ -->
+<script>
+(function () {
+  // ── Sub-tab routing (hash-based, persists on refresh) ──────
+  var TABS = ['queue', 'videos', 'monitor', 'files'];
+
+  function activateTab(name) {
+    if (TABS.indexOf(name) === -1) name = 'queue';
+    for (var i = 0; i < TABS.length; i++) {
+      var t = TABS[i];
+      var tab = document.getElementById('subtab-' + t);
+      var panel = document.getElementById('panel-' + t);
+      if (tab) tab.classList.toggle('active', t === name);
+      if (panel) panel.classList.toggle('active', t === name);
+    }
+    if (location.hash !== '#' + name) {
+      history.replaceState(null, '', '#' + name);
+    }
+  }
+
+  document.querySelectorAll('.subtab').forEach(function (el) {
+    el.addEventListener('click', function (e) {
+      e.preventDefault();
+      activateTab(this.getAttribute('data-tab'));
+    });
+  });
+
+  window.addEventListener('hashchange', function () {
+    activateTab((location.hash || '#queue').slice(1));
+  });
+
+  // initial tab from hash
+  activateTab((location.hash || '#queue').slice(1));
+
+  // ── Channel queue logic (preserved from previous version) ──
+  var timer = null;
+
+  function _priorityBandMatch(p, b) {
+    if (b === 'high')   return p >= 1   && p <= 25;
+    if (b === 'normal') return p >= 26  && p <= 100;
+    if (b === 'low')    return p >= 101;
+    return true;
+  }
+
+  function updateSelectedCount() {
+    var n = document.querySelectorAll('#downloads-sources .download-channel-select:checked').length;
+    var el = document.getElementById('downloads-selected-count');
+    if (el) el.textContent = String(n);
+  }
+
+  function applyChannelSearchFilter() {
+    var qEl = document.getElementById('downloads-channel-search');
+    var q = (qEl && qEl.value ? qEl.value : '').toLowerCase().trim();
+    var pEl = document.getElementById('downloads-priority-filter');
+    var band = pEl && pEl.value ? pEl.value : 'all';
+    var apoEl = document.getElementById('downloads-active-priority-only');
+    var apo = !!(apoEl && apoEl.checked);
+
+    var cards = document.querySelectorAll('#downloads-sources .download-channel-card');
+    var visible = 0;
+    for (var i = 0; i < cards.length; i++) {
+      var c = cards[i];
+      var name = (c.getAttribute('data-channel-name') || '').toLowerCase();
+      var pri = parseInt(c.getAttribute('data-priority') || '100', 10);
+      if (isNaN(pri)) pri = 100;
+      var isAct = c.getAttribute('data-active') === '1';
+      var hasAct = c.getAttribute('data-has-activity') === '1';
+      var ok = (!q || name.indexOf(q) !== -1) &&
+               _priorityBandMatch(pri, band) &&
+               (!apo || (pri <= 25 && (isAct || hasAct)));
+      c.style.display = ok ? '' : 'none';
+      if (!ok) {
+        var cb = c.querySelector('.download-channel-select');
+        if (cb) cb.checked = false;
+      } else {
+        visible++;
+      }
+    }
+    var vEl = document.getElementById('downloads-visible-count');
+    if (vEl) vEl.textContent = String(visible);
+
+    var sortEl = document.getElementById('downloads-card-sort');
+    var sort = sortEl && sortEl.value ? sortEl.value : 'backend';
+    var grid = document.querySelector('#downloads-sources .grid');
+    if (grid) {
+      var arr = Array.prototype.slice.call(cards);
+      arr.sort(function (a, b) {
+        var an = (a.getAttribute('data-channel-name') || '');
+        var bn = (b.getAttribute('data-channel-name') || '');
+        var ap = parseInt(a.getAttribute('data-priority') || '100', 10) || 100;
+        var bp = parseInt(b.getAttribute('data-priority') || '100', 10) || 100;
+        var ao = parseInt(a.getAttribute('data-original-order') || '0', 10) || 0;
+        var bo = parseInt(b.getAttribute('data-original-order') || '0', 10) || 0;
+        if (sort === 'backend')        return ao - bo;
+        if (sort === 'priority-asc')   return ap !== bp ? ap - bp : an.localeCompare(bn);
+        if (sort === 'priority-desc')  return ap !== bp ? bp - ap : an.localeCompare(bn);
+        return an.localeCompare(bn);
+      });
+      for (var j = 0; j < arr.length; j++) grid.appendChild(arr[j]);
+    }
+    updateSelectedCount();
+  }
+
+  function applyDefaultsToVisibleCards() {
+    var cEl = document.getElementById('downloads-default-count');
+    var dEl = document.getElementById('downloads-default-direction');
+    if (!cEl || !dEl) return;
+    var count = parseInt(cEl.value || '5', 10);
+    if (isNaN(count) || count < 1) count = 1;
+    if (count > 500) count = 500;
+    var dir = dEl.value === 'oldest' ? 'oldest' : 'newest';
+    document.querySelectorAll('#downloads-sources .download-channel-card').forEach(function (card) {
+      if (card.style.display === 'none') return;
+      var ci = card.querySelector('.js-queue-count');
+      var ds = card.querySelector('.js-queue-direction');
+      if (ci) ci.value = String(count);
+      if (ds) ds.value = dir;
+    });
+  }
+
+  async function queueSelectedCards() {
+    var selected = document.querySelectorAll('#downloads-sources .download-channel-card .download-channel-select:checked');
+    if (!selected.length) return;
+    var queued = 0;
+    for (var i = 0; i < selected.length; i++) {
+      var card = selected[i].closest('.download-channel-card');
+      if (!card || card.style.display === 'none') continue;
+      var form = card.querySelector('.download-trigger-form');
+      if (!form) continue;
+      var action = form.getAttribute('hx-post');
+      if (!action) continue;
+      var data = new URLSearchParams();
+      var ci = form.querySelector('input[name="count"]');
+      var ds = form.querySelector('select[name="direction"]');
+      var pi = form.querySelector('input[name="pipeline_id"]');
+      data.set('count', ci && ci.value ? ci.value : '5');
+      data.set('direction', ds && ds.value ? ds.value : 'newest');
+      if (pi && pi.value) data.set('pipeline_id', pi.value);
+      try {
+        var resp = await fetch(action, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+          body: data.toString()
+        });
+        if (resp.ok) queued++;
+      } catch (e) { /* keep going */ }
+    }
+    var panel = document.getElementById('downloads-sources');
+    if (panel) {
+      var url = panel.getAttribute('hx-get') || '/partials/downloads/sources';
+      htmx.ajax('GET', url, { target: '#downloads-sources', swap: 'innerHTML' });
+    }
+    console.log(queued > 0 ? 'Queued ' + queued + ' channel(s).' : 'Nothing queued.');
+  }
+
+  function bindControls() {
+    var s = document.getElementById('downloads-channel-search');
+    if (s && !s.dataset.bound) { s.dataset.bound = '1'; s.addEventListener('input', applyChannelSearchFilter); }
+
+    var clr = document.getElementById('downloads-clear-search');
+    if (clr && !clr.dataset.bound) {
+      clr.dataset.bound = '1';
+      clr.addEventListener('click', function () {
+        if (s) s.value = '';
+        var p = document.getElementById('downloads-priority-filter'); if (p) p.value = 'all';
+        var so = document.getElementById('downloads-card-sort');     if (so) so.value = 'backend';
+        document.querySelectorAll('#downloads-sources .download-channel-select').forEach(function (cb) { cb.checked = false; });
+        applyChannelSearchFilter();
+      });
+    }
+
+    var sv = document.getElementById('downloads-select-visible');
+    if (sv && !sv.dataset.bound) {
+      sv.dataset.bound = '1';
+      sv.addEventListener('click', function () {
+        document.querySelectorAll('#downloads-sources .download-channel-card').forEach(function (card) {
+          if (card.style.display === 'none') return;
+          var cb = card.querySelector('.download-channel-select');
+          if (cb) cb.checked = true;
+        });
+        updateSelectedCount();
+      });
+    }
+
+    var qs = document.getElementById('downloads-queue-selected');
+    if (qs && !qs.dataset.bound) { qs.dataset.bound = '1'; qs.addEventListener('click', queueSelectedCards); }
+
+    var pf = document.getElementById('downloads-priority-filter');
+    if (pf && !pf.dataset.bound) { pf.dataset.bound = '1'; pf.addEventListener('change', applyChannelSearchFilter); }
+
+    var sortEl = document.getElementById('downloads-card-sort');
+    if (sortEl && !sortEl.dataset.bound) { sortEl.dataset.bound = '1'; sortEl.addEventListener('change', applyChannelSearchFilter); }
+
+    var apo = document.getElementById('downloads-active-priority-only');
+    if (apo && !apo.dataset.bound) { apo.dataset.bound = '1'; apo.addEventListener('change', applyChannelSearchFilter); }
+
+    var ap = document.getElementById('downloads-apply-defaults');
+    if (ap && !ap.dataset.bound) { ap.dataset.bound = '1'; ap.addEventListener('click', applyDefaultsToVisibleCards); }
+
+    document.querySelectorAll('.downloads-preset-count').forEach(function (b) {
+      if (b.dataset.bound) return;
+      b.dataset.bound = '1';
+      b.addEventListener('click', function () {
+        var c = document.getElementById('downloads-default-count');
+        if (c) c.value = this.getAttribute('data-count') || '5';
+        applyDefaultsToVisibleCards();
+      });
+    });
+
+    applyChannelSearchFilter();
+    document.querySelectorAll('#downloads-sources .download-channel-select').forEach(function (cb) {
+      if (cb.dataset.bound) return;
+      cb.dataset.bound = '1';
+      cb.addEventListener('change', updateSelectedCount);
+    });
+    updateSelectedCount();
+  }
+
+  function applyInterval(secs) {
+    if (timer) { clearInterval(timer); timer = null; }
+    if (secs > 0) {
+      timer = setInterval(function () {
+        var el = document.getElementById('downloads-live');
+        if (el) el.dispatchEvent(new Event('manual-refresh'));
+      }, secs * 1000);
+    }
+  }
+  applyInterval(60);
+  bindControls();
+
+  document.body.addEventListener('htmx:afterSwap', function (evt) {
+    var t = evt.detail && evt.detail.target;
+    if (t && t.id === 'downloads-sources') bindControls();
+  });
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var sel = document.getElementById('live-interval-select');
+    if (sel) sel.addEventListener('change', function () { applyInterval(+this.value); });
+    bindControls();
+    bindVideosTab();
+  });
+
+  // ── Videos sub-tab ──────────────────────────────────────────
+  function loadChannelVideos() {
+    var sel = document.getElementById('vid-channel-select');
+    var orderEl = document.getElementById('vid-order');
+    var container = document.getElementById('downloads-channel-videos');
+    if (!sel || !container) return;
+    var cid = sel.value;
+    if (!cid) {
+      container.innerHTML = '<p class="dl-meta">Pick a channel above to see its videos.</p>';
+      return;
+    }
+    var order = (orderEl && orderEl.value) === 'oldest' ? 'oldest' : 'newest';
+    var url = '/partials/downloads/channel-videos?channel_id=' + encodeURIComponent(cid) +
+              '&order=' + order;
+    container.innerHTML = '<p class="dl-meta">Loading videos…</p>';
+    htmx.ajax('GET', url, { target: '#downloads-channel-videos', swap: 'innerHTML' });
+  }
+
+  async function batchDownloadFromChannel() {
+    var sel = document.getElementById('vid-channel-select');
+    var orderEl = document.getElementById('vid-order');
+    var countEl = document.getElementById('vid-batch-count');
+    var statusEl = document.getElementById('vid-batch-status');
+    if (!sel || !sel.value) return;
+    var cid = sel.value;
+    var order = (orderEl && orderEl.value) === 'oldest' ? 'oldest' : 'newest';
+    var count = parseInt((countEl && countEl.value) || '5', 10);
+    if (isNaN(count) || count < 1) count = 1;
+    if (count > 500) count = 500;
+
+    if (statusEl) statusEl.innerHTML = '<span style="color:#58a6ff;">Queueing ' + count + ' video(s)…</span>';
+
+    var data = new URLSearchParams();
+    data.set('count', String(count));
+    data.set('direction', order);
+
+    try {
+      var resp = await fetch('/downloads/trigger/' + encodeURIComponent(cid), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: data.toString(),
+      });
+      if (resp.ok) {
+        if (statusEl) statusEl.innerHTML = '<span style="color:#3fb950;">✓ Batch queued (' + count + ', ' + order + ' first). Refreshing list…</span>';
+        loadChannelVideos();
+      } else {
+        if (statusEl) statusEl.innerHTML = '<span style="color:#f85149;">Failed: HTTP ' + resp.status + '</span>';
+      }
+    } catch (e) {
+      if (statusEl) statusEl.innerHTML = '<span style="color:#f85149;">Network error</span>';
+    }
+  }
+
+  function bindVideosTab() {
+    var sel = document.getElementById('vid-channel-select');
+    var orderEl = document.getElementById('vid-order');
+    var batchBtn = document.getElementById('vid-batch-btn');
+    var refreshBtn = document.getElementById('vid-refresh-btn');
+
+    function syncEnabled() {
+      var has = !!(sel && sel.value);
+      if (batchBtn) batchBtn.disabled = !has;
+      if (refreshBtn) refreshBtn.disabled = !has;
+    }
+
+    if (sel && !sel.dataset.bound) {
+      sel.dataset.bound = '1';
+      sel.addEventListener('change', function () {
+        syncEnabled();
+        loadChannelVideos();
+      });
+    }
+    if (orderEl && !orderEl.dataset.bound) {
+      orderEl.dataset.bound = '1';
+      orderEl.addEventListener('change', loadChannelVideos);
+    }
+    if (batchBtn && !batchBtn.dataset.bound) {
+      batchBtn.dataset.bound = '1';
+      batchBtn.addEventListener('click', batchDownloadFromChannel);
+    }
+    if (refreshBtn && !refreshBtn.dataset.bound) {
+      refreshBtn.dataset.bound = '1';
+      refreshBtn.addEventListener('click', loadChannelVideos);
+    }
+    syncEnabled();
+  }
+  bindVideosTab();
+})();
+
+function openFolderBrowser() {
+  var o = document.getElementById('folder-browser-overlay');
+  o.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  htmx.ajax('GET', '/api/storage/browse', { target: '#storage-browser', swap: 'innerHTML' });
+}
+function closeFolderBrowser() {
+  document.getElementById('folder-browser-overlay').style.display = 'none';
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') closeFolderBrowser();
+});
+</script>
+
+{% endblock %}

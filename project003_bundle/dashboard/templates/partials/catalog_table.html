@@ -1,0 +1,377 @@
+{# partials/catalog_table.html — paginated catalog table.
+   Expects: source, rows, page, per_page, total, has_more, format_duration #}
+
+{# ---- Filter bar ---- #}
+{% set f = filters or {} %}
+<form class="mb-3 flex flex-wrap items-center gap-2 p-2 rounded text-xs"
+      style="background: var(--surface); border: 1px solid var(--border); color: var(--text-muted);"
+      hx-get="/partials/sources/{{ source.id }}/catalog"
+      hx-target="#catalog-panel" hx-swap="innerHTML"
+      hx-trigger="change, submit, keyup changed delay:400ms from:input[type=search]">
+  <input type="hidden" name="page" value="1">
+  <input type="hidden" name="per_page" value="{{ per_page }}">
+  <input type="search" name="q" value="{{ f.q or '' }}" placeholder="Search title…"
+         class="px-2 py-1 rounded"
+         style="background: #1c222b; color: var(--text); border: 1px solid var(--border); min-width: 220px;">
+  <select name="status" class="px-2 py-1 rounded"
+          style="background: #1c222b; color: var(--text); border: 1px solid var(--border);">
+    <option value="" {% if not f.status %}selected{% endif %}>any status</option>
+    {% for opt in ['never','queued','uploading','uploaded','failed'] %}
+      <option value="{{ opt }}" {% if f.status == opt %}selected{% endif %}>{{ opt }}</option>
+    {% endfor %}
+  </select>
+  <select name="min_duration" class="px-2 py-1 rounded"
+          style="background: #1c222b; color: var(--text); border: 1px solid var(--border);"
+          title="Minimum duration">
+    <option value="0" {% if not f.min_duration %}selected{% endif %}>any length</option>
+    <option value="60"   {% if f.min_duration == 60 %}selected{% endif %}>≥ 1 min</option>
+    <option value="600"  {% if f.min_duration == 600 %}selected{% endif %}>≥ 10 min</option>
+    <option value="1800" {% if f.min_duration == 1800 %}selected{% endif %}>≥ 30 min</option>
+    <option value="3600" {% if f.min_duration == 3600 %}selected{% endif %}>≥ 1 hr</option>
+  </select>
+  <select name="max_duration" class="px-2 py-1 rounded"
+          style="background: #1c222b; color: var(--text); border: 1px solid var(--border);"
+          title="Maximum duration">
+    <option value="0" {% if not f.max_duration %}selected{% endif %}>no max</option>
+    <option value="600"  {% if f.max_duration == 600 %}selected{% endif %}>≤ 10 min</option>
+    <option value="1800" {% if f.max_duration == 1800 %}selected{% endif %}>≤ 30 min</option>
+    <option value="3600" {% if f.max_duration == 3600 %}selected{% endif %}>≤ 1 hr</option>
+  </select>
+  <label class="inline-flex items-center gap-1 px-1">
+    <input type="checkbox" name="hide_shorts" value="1" {% if f.hide_shorts %}checked{% endif %}>
+    hide Shorts
+  </label>
+  <label class="inline-flex items-center gap-1 px-1">
+    <input type="checkbox" name="starred" value="1" {% if f.starred %}checked{% endif %}>
+    ⭐ only
+  </label>
+  <select name="sort" class="px-2 py-1 rounded"
+          style="background: #1c222b; color: var(--text); border: 1px solid var(--border);">
+    {% for s, lbl in [('upload_date','date'),('duration','length'),('views','views'),('title','title')] %}
+      <option value="{{ s }}" {% if f.sort == s %}selected{% endif %}>sort: {{ lbl }}</option>
+    {% endfor %}
+  </select>
+  <select name="order" class="px-2 py-1 rounded"
+          style="background: #1c222b; color: var(--text); border: 1px solid var(--border);">
+    <option value="desc" {% if f.order != 'asc' %}selected{% endif %}>↓ desc</option>
+    <option value="asc"  {% if f.order == 'asc' %}selected{% endif %}>↑ asc</option>
+  </select>
+  {% if f.q or f.status or f.dl_state or f.starred or f.hide_shorts or f.min_duration or f.max_duration %}
+    <a href="#" class="px-2 py-1 rounded"
+       style="color: #f85149; border: 1px solid var(--border);"
+       hx-get="/partials/sources/{{ source.id }}/catalog?per_page={{ per_page }}"
+       hx-target="#catalog-panel" hx-swap="innerHTML">clear</a>
+  {% endif %}
+</form>
+
+{# ---- Download-state chips (synced with the unified download_state pills) ---- #}
+{% set _chip_states = [
+    ('',           'all',         '#1f2933', '#cdd9e5'),
+    ('downloaded', '✓ downloaded','#1f3a26', '#7ee787'),
+    ('downloading','↓ downloading','#1f2d3a','#79c0ff'),
+    ('queued',     '◷ queued',    '#3a2d1d', '#d29922'),
+    ('failed',     '✗ failed',    '#3a1d1d', '#f85149'),
+    ('not_started','· not started','#1c222b','#8b949e'),
+] %}
+<div class="mb-3 flex flex-wrap items-center gap-1">
+  {% for val, lbl, bg, fg in _chip_states %}
+    {% set active = (f.dl_state or '') == val %}
+    <a href="#" class="px-2 py-1 rounded text-xs"
+       style="background: {{ bg }}; color: {{ fg }};
+              border: 1px solid {{ fg if active else 'var(--border)' }};
+              text-decoration: none;
+              {% if active %}box-shadow: 0 0 0 1px {{ fg }} inset;{% endif %}"
+       hx-get="/partials/sources/{{ source.id }}/catalog?per_page={{ per_page }}{% if val %}&dl_state={{ val }}{% endif %}{% if f.q %}&q={{ f.q|urlencode }}{% endif %}{% if f.status %}&status={{ f.status }}{% endif %}{% if f.starred %}&starred=1{% endif %}{% if f.hide_shorts %}&hide_shorts=1{% endif %}{% if f.min_duration %}&min_duration={{ f.min_duration }}{% endif %}{% if f.max_duration %}&max_duration={{ f.max_duration }}{% endif %}{% if f.sort %}&sort={{ f.sort }}{% endif %}{% if f.order %}&order={{ f.order }}{% endif %}"
+       hx-target="#catalog-panel" hx-swap="innerHTML">{{ lbl }}</a>
+  {% endfor %}
+</div>
+
+{# Build the filter querystring for pagination/hydrate links #}
+{% set qs %}{% if f.q %}&q={{ f.q|urlencode }}{% endif %}{% if f.status %}&status={{ f.status }}{% endif %}{% if f.dl_state %}&dl_state={{ f.dl_state }}{% endif %}{% if f.starred %}&starred=1{% endif %}{% if f.hide_shorts %}&hide_shorts=1{% endif %}{% if f.min_duration %}&min_duration={{ f.min_duration }}{% endif %}{% if f.max_duration %}&max_duration={{ f.max_duration }}{% endif %}{% if f.sort %}&sort={{ f.sort }}{% endif %}{% if f.order %}&order={{ f.order }}{% endif %}{% endset %}
+
+<div class="mb-3 flex items-center justify-between text-xs"
+     style="color: var(--text-muted);">
+  <span>{{ total }} videos · page {{ page }}{% if unhydrated %} · <span style="color: #d29922;">{{ unhydrated }} not yet hydrated</span>{% endif %}</span>
+  <div class="flex items-center gap-3">
+    <a class="px-2 py-1 rounded text-xs"
+       style="background: #1f2933; color: #58a6ff; border: 1px solid var(--border); text-decoration: none;"
+       href="/api/sources/{{ source.id }}/catalog/export.csv?{{ qs[1:] if qs else '' }}"
+       title="Download the currently-filtered catalog as CSV">
+      ↓ CSV ({{ total }})
+    </a>
+    <span hx-get="/partials/hydrate/badge"
+          hx-trigger="load, every 5s"
+          hx-swap="innerHTML">
+      <span class="text-xs" style="color: var(--text-muted);">…</span>
+    </span>
+    {% if unhydrated %}
+      <button class="px-2 py-1 rounded text-xs"
+              style="background: #1f2933; color: #58a6ff; border: 1px solid var(--border);"
+              hx-post="/partials/sources/{{ source.id }}/hydrate?limit=25"
+              hx-target="#catalog-panel" hx-swap="innerHTML"
+              hx-indicator="#hydrate-spinner"
+              title="Hydrate the next 25 rows now (foreground; the worker also runs in background)">
+        Hydrate now
+        <span id="hydrate-spinner" class="htmx-indicator">…</span>
+      </button>
+    {% endif %}
+    {% if source.last_scanned_at %}
+      <span title="{{ source.last_scanned_at }}">last scanned: {{ source.last_scanned_at }}</span>
+    {% endif %}
+    <span hx-get="/partials/sources/{{ source.id }}/disk-usage"
+          hx-trigger="load"
+          hx-swap="innerHTML"
+          title="Total disk usage of this source's downloaded videos (cached 5m)">
+      <span class="text-xs" style="color: var(--text-muted);">💾 …</span>
+    </span>
+  </div>
+</div>
+
+{% if not rows %}
+<div class="p-6 text-center text-sm italic rounded"
+     style="background: var(--surface); color: var(--text-muted); border: 1px dashed var(--border);">
+  Nothing here yet. Click <strong>Re-scan</strong> to fetch the video list from YouTube.
+</div>
+{% else %}
+
+{# ── Bulk download toolbar ────────────────────────────────────────── #}
+<form id="catalog-bulk-form"
+      hx-post="/partials/catalog/download/bulk"
+      hx-target="#catalog-bulk-result"
+      hx-swap="innerHTML"
+      class="mb-2 flex items-center gap-3 px-2 py-1.5 rounded text-xs"
+      style="background: #0d1117; border: 1px solid var(--border); color: var(--text-muted);">
+  <input type="hidden" name="source_id" value="{{ source.id }}">
+  <label class="flex items-center gap-1">
+    <input type="checkbox" id="catalog-select-all"
+           onclick="document.querySelectorAll('.catalog-row-cb').forEach(c=>c.checked=this.checked); window._catalogUpdateCount && window._catalogUpdateCount();">
+    Select all on page
+  </label>
+  <span id="catalog-selected-count" style="color: var(--text-muted);">0 selected</span>
+  <button type="submit"
+          class="ml-auto px-3 py-1 rounded font-medium"
+          style="background: #1f6feb; color: white;">
+    ⤓ Download selected
+  </button>
+  <span id="catalog-bulk-result"></span>
+</form>
+
+<div class="overflow-x-auto rounded"
+     style="background: var(--surface); border: 1px solid var(--border);">
+<table class="w-full text-sm">
+  <thead style="background: #1c222b; color: var(--text-muted);">
+    <tr class="text-left">
+      <th class="px-2 py-2 w-6"></th>
+      <th class="px-3 py-2 w-8">⭐</th>
+      <th class="px-3 py-2 w-32">Thumb</th>
+      <th class="px-3 py-2">Title</th>
+      <th class="px-3 py-2 w-24">Length</th>
+      <th class="px-3 py-2 w-28">Date</th>
+      <th class="px-3 py-2 w-24 text-right">Views</th>
+      <th class="px-3 py-2 w-32" title="Most recent upload attempt to a configured destination">Upload</th>
+      <th class="px-3 py-2 w-72" title="Local download state + per-destination upload trigger">Download &amp; send</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    {% set ds = download_state(r) %}
+    <tr id="catalog-row-{{ r.id }}" style="border-top: 1px solid var(--border);">
+      <td class="px-2 py-2">
+        {% if ds.blocks_action %}
+          <span class="text-xs" style="color: var(--text-muted);" title="{{ ds.label }} — not eligible for bulk download">·</span>
+        {% else %}
+          <input type="checkbox" class="catalog-row-cb"
+                 form="catalog-bulk-form" name="video_ids" value="{{ r.video_id }}"
+                 onchange="window._catalogUpdateCount && window._catalogUpdateCount();">
+        {% endif %}
+      </td>
+      <td class="px-3 py-2">
+        {% with catalog_id=r.id, starred=r.starred %}
+          {% include "partials/catalog_star_cell.html" %}
+        {% endwith %}
+      </td>
+      <td class="px-3 py-2">
+        {% if r.thumbnail_url %}
+          <a href="https://www.youtube.com/watch?v={{ r.video_id }}" target="_blank" rel="noopener">
+            <img src="{{ r.thumbnail_url }}" alt="" loading="lazy"
+                 style="width: 112px; height: 63px; object-fit: cover; border-radius: 4px; display: block;">
+          </a>
+        {% else %}
+          <div style="width: 112px; height: 63px; background: #1c222b; border-radius: 4px;"></div>
+        {% endif %}
+      </td>
+      <td class="px-3 py-2">
+        <a href="https://www.youtube.com/watch?v={{ r.video_id }}"
+           target="_blank" rel="noopener"
+           class="text-white hover:underline truncate inline-block max-w-2xl align-middle"
+           title="{{ r.title }}">{{ r.title }}</a>
+        {% if r.live_status and r.live_status != 'not_live' %}
+          <span class="ml-2 text-xs px-1.5 py-0.5 rounded"
+                style="background: #3a2d1d; color: #d29922;">{{ r.live_status }}</span>
+        {% endif %}
+      </td>
+      <td class="px-3 py-2 font-mono text-xs" style="color: var(--text-muted);">
+        {{ format_duration(r.duration_sec) }}
+      </td>
+      <td class="px-3 py-2 font-mono text-xs" style="color: var(--text-muted);">
+        {{ r.upload_date or '—' }}
+      </td>
+      <td class="px-3 py-2 font-mono text-xs text-right" style="color: var(--text-muted);">
+        {{ format_views(r.view_count) or '—' }}
+      </td>
+      <td class="px-3 py-2">
+        {% with video_id=r.video_id, upload_status=r.upload_status,
+                pending_ledger_id=r.pending_ledger_id,
+                pending_created_at=r.pending_created_at, undo_window=30 %}
+          {% include "partials/catalog_status_cell.html" %}
+        {% endwith %}
+      </td>
+      <td class="px-3 py-2">
+        {# Manual DOWNLOAD button — single source of truth via download_state(r). #}
+        <div class="flex items-center gap-1 mb-1">
+          {% if ds.key == 'not_started' or ds.key == 'failed' %}
+            <button type="button"
+                    class="px-2 py-0.5 rounded text-xs"
+                    style="background: #1f6feb; color: white; border: 1px solid #1f6feb;"
+                    title="{% if ds.key == 'failed' %}Re-queue this video for download{% else %}Queue this video for download (independent of upload destinations){% endif %}"
+                    hx-post="/partials/catalog/download"
+                    hx-vals='{"video_id": "{{ r.video_id }}", "source_id": "{{ source.id }}"}'
+                    hx-target="this"
+                    hx-swap="outerHTML">
+              ⤓ {% if ds.key == 'failed' %}Retry{% else %}Download{% endif %}
+            </button>
+            {% if ds.key == 'failed' %}
+              <span class="text-xs px-1.5 py-0.5 rounded cursor-help"
+                    style="background:{{ ds.bg }};color:{{ ds.color }};border:1px solid #30363d;"
+                    title="{% if r.error_message %}{{ r.error_message|truncate(300, true) }}{% else %}Previous download failed — click Retry{% endif %}">{{ ds.label }}</span>
+            {% endif %}
+          {% else %}
+            <span class="text-xs px-1.5 py-0.5 rounded"
+                  style="background:{{ ds.bg }};color:{{ ds.color }};border:1px solid #30363d;">{{ ds.label }}</span>
+          {% endif %}
+        </div>
+        {% if not destinations %}
+          <span class="text-xs italic" style="color: var(--text-muted);"
+                title="Attach a pipeline with destinations to this source to enable manual upload.">
+            no upload dests
+          </span>
+        {% else %}
+          <form class="flex items-center gap-1"
+                hx-post="/partials/catalog/enqueue"
+                hx-target="closest tr td:nth-last-child(2)"
+                hx-swap="innerHTML">
+            <input type="hidden" name="video_id" value="{{ r.video_id }}">
+            <input type="hidden" name="source_id" value="{{ source.id }}">
+            <select name="destination_id"
+                    class="text-xs px-1 py-0.5 rounded"
+                    style="background: #1c222b; color: var(--text); border: 1px solid var(--border);">
+              {% for d in destinations %}
+                <option value="{{ d.id }}"
+                        {% if d.color_tag %}style="border-left: 4px solid {{ d.color_tag }};"{% endif %}>
+                  {{ d.platform }}{% if d.label %} · {{ d.label }}{% endif %}
+                </option>
+              {% endfor %}
+            </select>
+            <button type="submit"
+                    class="px-2 py-0.5 rounded text-xs"
+                    style="background: #1f2933; color: #58a6ff; border: 1px solid var(--border);"
+                    title="Queue this video for upload to the selected destination">
+              Queue
+            </button>
+            <button type="button"
+                    class="px-2 py-0.5 rounded text-xs"
+                    style="background: #1f2933; color: #3fb950; border: 1px solid var(--border);"
+                    title="Mark this video as already uploaded manually (e.g. via YouTube Studio). Pastes a YouTube URL or video ID."
+                    hx-post="/partials/catalog/mark-uploaded"
+                    hx-include="closest form"
+                    hx-prompt="Paste the YouTube URL (or 11-char video ID) for the manual upload. Leave blank to mark uploaded without a URL."
+                    hx-target="closest tr td:nth-last-child(2)"
+                    hx-swap="innerHTML">
+              ✓ Mark
+            </button>
+            <button type="button"
+                    class="px-1.5 py-0.5 rounded text-xs"
+                    style="background: transparent; color: var(--text-muted); border: 1px solid var(--border);"
+                    title="Hide this video from the catalog (mark ignored)"
+                    hx-post="/api/catalog/{{ r.id }}/toggle_ignore"
+                    hx-target="#catalog-row-{{ r.id }}"
+                    hx-swap="outerHTML"
+                    hx-confirm="Hide this video from the catalog?">
+              ✕
+            </button>
+          </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<div class="mt-3 flex items-center justify-between text-xs"
+     style="color: var(--text-muted);">
+  <div>
+    Showing {{ rows|length }} of {{ total }}
+  </div>
+  <div class="flex gap-2">
+    {% if page > 1 %}
+      <button class="px-2 py-1 rounded"
+              style="background: var(--surface); border: 1px solid var(--border);"
+              hx-get="/partials/sources/{{ source.id }}/catalog?page={{ page - 1 }}&per_page={{ per_page }}{{ qs }}"
+              hx-target="#catalog-panel" hx-swap="innerHTML">← Prev</button>
+    {% endif %}
+    {% if has_more %}
+      <button class="px-2 py-1 rounded"
+              style="background: var(--surface); border: 1px solid var(--border);"
+              hx-get="/partials/sources/{{ source.id }}/catalog?page={{ page + 1 }}&per_page={{ per_page }}{{ qs }}"
+              hx-target="#catalog-panel" hx-swap="innerHTML">Next →</button>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{# Bulk-selection counter sync — runs once per partial render. #}
+<script>
+(function () {
+  window._catalogUpdateCount = function () {
+    var n = document.querySelectorAll('.catalog-row-cb:checked').length;
+    var el = document.getElementById('catalog-selected-count');
+    if (el) el.textContent = n + ' selected';
+  };
+  window._catalogUpdateCount();
+})();
+</script>
+
+{# Countdown ticker for undo badges. Re-runs after every HTMX swap. #}
+<script>
+(function () {
+  function tick() {
+    var now = Date.now();
+    document.querySelectorAll('.catalog-undo-badge').forEach(function (el) {
+      var createdRaw = el.dataset.createdAt || '';
+      // Treat the ISO string as UTC (the server uses strftime %Y-%m-%dT%H:%M:%S 'now')
+      var t0 = Date.parse(createdRaw + (createdRaw.endsWith('Z') ? '' : 'Z'));
+      if (isNaN(t0)) return;
+      var win = parseInt(el.dataset.window || '30', 10);
+      var elapsed = Math.floor((now - t0) / 1000);
+      var remaining = win - elapsed;
+      var secsEl = el.querySelector('.catalog-undo-secs');
+      if (remaining <= 0) {
+        // Soft-undo window elapsed — flip the label, hide the button.
+        var labelEl = el.querySelector('.catalog-undo-label');
+        if (labelEl) labelEl.textContent = 'queued for upload';
+        var btn = el.querySelector('button');
+        if (btn) btn.style.display = 'none';
+        el.style.background = '#1f2933';
+        el.style.color = '#58a6ff';
+        el.style.borderColor = 'var(--border)';
+      } else if (secsEl) {
+        secsEl.textContent = remaining;
+      }
+    });
+  }
+  if (window.__catalogUndoTimer) clearInterval(window.__catalogUndoTimer);
+  window.__catalogUndoTimer = setInterval(tick, 1000);
+  tick();
+})();
+</script>

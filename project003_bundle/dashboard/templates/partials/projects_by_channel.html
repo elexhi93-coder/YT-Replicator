@@ -1,0 +1,182 @@
+{# Grouped-by-channel projects view.
+   Replaces the flat table when the user has at least one channel detected.
+   Each bucket has: channel (dict or None), projects (list), cap_total,
+   used_total, next_pick_id (int or None).
+#}
+{% if not buckets %}
+  <div class="p-4 text-sm text-gray-500 italic">
+    No projects configured. Add one or more above to enable rotation.
+  </div>
+{% else %}
+<div class="space-y-4 p-3">
+{% for b in buckets %}
+  {% set ch = b.channel %}
+  {% set used = b.used_total|int %}
+  {% set cap  = b.cap_total|int %}
+  {% set pct  = ((used / cap) * 100) if cap else 0 %}
+  {% set is_unbound = (ch is none) %}
+
+  <div class="border rounded-lg overflow-hidden
+              {% if is_unbound %}border-amber-700 bg-amber-950/20
+              {% else %}border-gray-700 bg-gray-900{% endif %}">
+
+    {# ---- Channel header ---- #}
+    <div class="flex items-center gap-3 px-4 py-3 border-b
+                {% if is_unbound %}border-amber-800 bg-amber-900/30
+                {% else %}border-gray-700 bg-gray-800/60{% endif %}">
+
+      {% if is_unbound %}
+        <div class="w-10 h-10 rounded bg-amber-700/40 flex items-center
+                    justify-center text-amber-200 text-lg">⚠</div>
+        <div class="flex-1 min-w-0">
+          <div class="text-amber-200 font-semibold">Unbound projects</div>
+          <div class="text-[11px] text-amber-300/70">
+            These projects need OAuth authorization before we know which
+            YouTube channel they upload to. Click <em>Connect channel</em>
+            on each row.
+          </div>
+        </div>
+      {% else %}
+        {% if ch.thumbnail_url %}
+          <img src="{{ ch.thumbnail_url }}" alt=""
+               class="w-10 h-10 rounded-full bg-gray-700"
+               onerror="this.style.visibility='hidden'" />
+        {% else %}
+          <div class="w-10 h-10 rounded-full bg-gray-700 flex items-center
+                      justify-center text-gray-300 text-sm font-mono">
+            {{ (ch.title or '?')[:1]|upper }}
+          </div>
+        {% endif %}
+        <div class="flex-1 min-w-0">
+          <div class="flex items-baseline gap-2">
+            <span class="text-white font-semibold truncate">{{ ch.title or '(unknown)' }}</span>
+            {% if ch.channel_id %}
+              <a href="https://www.youtube.com/channel/{{ ch.channel_id }}"
+                 target="_blank" rel="noopener"
+                 class="text-[11px] text-blue-400 hover:underline font-mono"
+                 title="Open on YouTube">{{ ch.channel_id[:14] }}…</a>
+            {% endif %}
+          </div>
+          <div class="text-[11px] text-gray-400">
+            {% if ch.owner_email %}
+              owner: <span class="font-mono text-gray-300">{{ ch.owner_email }}</span>
+            {% else %}
+              owner: <span class="italic text-gray-500">unknown</span>
+            {% endif %}
+            &nbsp;·&nbsp; {{ b.projects|length }} project{% if b.projects|length != 1 %}s{% endif %}
+          </div>
+        </div>
+        <div class="text-right shrink-0 w-44">
+          <div class="text-xs text-gray-300 font-mono">
+            {{ used }} / {{ cap }} today
+          </div>
+          <div class="w-full h-1.5 bg-gray-800 rounded overflow-hidden mt-1">
+            <div class="h-full transition-all duration-500
+                        {% if cap and used >= cap %}bg-red-500
+                        {% elif pct > 70 %}bg-amber-500
+                        {% else %}bg-green-500{% endif %}"
+                 style="width: {{ pct|round(0) }}%"></div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    {# ---- Project rows ---- #}
+    <table class="w-full text-sm">
+      <tbody class="divide-y divide-gray-800">
+      {% for it in b.projects %}
+        {% set p_used = it.uploads_today|int %}
+        {% set p_cap  = it.daily_cap|int %}
+        {% set p_pct  = ((p_used / p_cap) * 100) if p_cap else 0 %}
+        {% set quota_blocked = it.quota_resets_at and it.quota_resets_at > '' %}
+        {% set is_next = (b.next_pick_id == it.id) %}
+        <tr class="{% if not it.active %}opacity-50{% endif %}
+                   {% if is_next %}bg-green-900/10{% endif %}">
+          <td class="px-3 py-2 align-top w-1/3">
+            <div class="flex items-center gap-2">
+              <span class="text-white font-medium truncate">{{ it.label }}</span>
+              {% if is_next %}
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-green-700/60
+                             text-green-100 whitespace-nowrap" title="Next pick for this channel">
+                  ← next
+                </span>
+              {% endif %}
+              {% if it.needs_reauth %}
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-red-800/70
+                             text-red-100 whitespace-nowrap"
+                      title="{{ it.last_error or '' }}">needs re-auth</span>
+              {% endif %}
+            </div>
+            <div class="text-[11px] text-gray-500 font-mono truncate"
+                 title="{{ it.client_id }}">{{ it.client_id[:32] }}…</div>
+            {% if it.last_error and it.needs_reauth %}
+              <div class="text-[10px] text-red-400 truncate mt-0.5"
+                   title="{{ it.last_error }}">{{ it.last_error[:80] }}</div>
+            {% endif %}
+          </td>
+
+          <td class="px-3 py-2 align-top w-44">
+            <div class="text-xs text-gray-300 mb-1 font-mono">{{ p_used }} / {{ p_cap }}</div>
+            <div class="w-full h-1.5 bg-gray-800 rounded overflow-hidden">
+              <div class="h-full transition-all duration-500
+                          {% if p_used >= p_cap %}bg-red-500
+                          {% elif p_pct > 70 %}bg-amber-500
+                          {% else %}bg-green-500{% endif %}"
+                   style="width: {{ p_pct|round(0) }}%"></div>
+            </div>
+          </td>
+
+          <td class="px-3 py-2 align-top">
+            {% if not it.active %}
+              <span class="px-1.5 py-0.5 text-xs rounded bg-gray-700 text-gray-300">paused</span>
+            {% elif it.needs_reauth %}
+              <a href="/oauth/youtube/start?project_id={{ it.id }}"
+                 class="text-xs px-2 py-1 rounded bg-red-600 hover:bg-red-500 text-white"
+                 title="{{ it.last_error or 'token revoked or expired' }}">
+                Reconnect ⚠
+              </a>
+            {% elif quota_blocked %}
+              <span class="px-1.5 py-0.5 text-xs rounded bg-red-700 text-red-100"
+                    title="Resets at {{ it.quota_resets_at }}Z">quota hit</span>
+            {% elif p_used >= p_cap %}
+              <span class="px-1.5 py-0.5 text-xs rounded bg-amber-700 text-amber-100">cap reached</span>
+            {% elif not it.account_label %}
+              <a href="/oauth/youtube/start?project_id={{ it.id }}"
+                 class="text-xs px-2 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white">
+                Connect channel →
+              </a>
+            {% else %}
+              <span class="px-1.5 py-0.5 text-xs rounded bg-green-700 text-green-100">ready</span>
+            {% endif %}
+          </td>
+
+          <td class="px-3 py-2 align-top text-right whitespace-nowrap">
+            <form method="post" action="/api/projects/{{ it.id }}/toggle" class="inline">
+              <button type="submit"
+                      class="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-100">
+                {% if it.active %}Pause{% else %}Resume{% endif %}
+              </button>
+            </form>
+            <form method="post" action="/api/projects/{{ it.id }}/reset_counter" class="inline">
+              <button type="submit"
+                      class="text-xs px-2 py-1 rounded bg-blue-700 hover:bg-blue-600 text-white"
+                      title="Clear today's counter and quota cooldown">
+                Reset
+              </button>
+            </form>
+            <form method="post" action="/api/projects/{{ it.id }}/delete" class="inline"
+                  onsubmit="return confirm('Delete project {{ it.label }}? Existing tokens will be unlinked.');">
+              <button type="submit"
+                      class="text-xs px-2 py-1 rounded bg-red-700 hover:bg-red-600 text-white">
+                Delete
+              </button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endfor %}
+</div>
+{% endif %}

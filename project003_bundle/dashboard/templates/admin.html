@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-2xl mx-auto">
+  <h1 class="text-2xl font-bold mb-1" style="color:#f0f6fc;">Admin</h1>
+  <p class="text-sm mb-8" style="color:#8b949e;">Maintenance actions. Projects tab configuration (pipelines, sources, destinations, profiles, routing, channels, OAuth) is always preserved.</p>
+
+  <!-- ── YouTube Credentials ── -->
+  <div class="rounded-lg border p-6 mb-6" style="background:#161b22; border-color:#388bfd66;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <h2 class="text-lg font-semibold" style="color:#79c0ff;">YouTube Credentials</h2>
+      <button
+        hx-get="/admin/credentials"
+        hx-target="#credentials-list"
+        hx-swap="innerHTML"
+        class="px-3 py-1.5 rounded text-xs font-semibold"
+        style="background:#21262d; color:#8b949e; border:1px solid #30363d; cursor:pointer;">
+        ↻ Refresh
+      </button>
+    </div>
+    <p class="text-sm mb-4" style="color:#8b949e;">
+      All configured Google Cloud projects. Click <strong style="color:#79c0ff;">Re-authorize</strong>
+      on a row to re-run the OAuth flow with a new or corrected client secret.
+      If you see <em>invalid_client</em> errors, the client secret was rotated in Google Cloud Console —
+      upload a new <code>client_secrets.json</code> via the Projects page, then re-authorize here.
+    </p>
+    <div id="credentials-list"
+         hx-get="/admin/credentials"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+      <span style="color:#8b949e;font-size:13px;">Loading…</span>
+    </div>
+  </div>
+
+  <!-- ── Bad OAuth Tokens ── -->
+  <div class="rounded-lg border p-6 mb-6" style="background:#161b22; border-color:#f8514966;">
+    <h2 class="text-lg font-semibold mb-1" style="color:#f85149;">Factory Reset</h2>
+    <p class="text-sm mb-4" style="color:#8b949e;">
+      Wipes all operational data and starts fresh. The following are <strong style="color:#f0f6fc;">preserved</strong>:
+      pipelines, sources, destinations, download profiles, routing rules, channels, YouTube projects &amp; OAuth tokens, worker state.
+    </p>
+    <p class="text-sm mb-5" style="color:#8b949e;">
+      The following are <strong style="color:#f85149;">deleted</strong>:
+      catalog videos, download queue, jobs, job outputs, upload results, upload progress, upload ledger, destination quota, history.
+    </p>
+
+    <div id="factory-reset-area">
+      <button
+        onclick="document.getElementById('factory-reset-confirm').style.display='block'; this.style.display='none';"
+        class="px-4 py-2 rounded text-sm font-semibold"
+        style="background:#3d1a1a; color:#f85149; border:1px solid #f85149;">
+        ⚠ Factory Reset…
+      </button>
+
+      <div id="factory-reset-confirm" style="display:none;">
+        <p class="text-sm mb-3" style="color:#f0f6fc; font-weight:600;">
+          Are you sure? This cannot be undone.
+        </p>
+        <div class="flex gap-3 items-center mb-3">
+          <label class="text-sm" style="color:#8b949e;">
+            <input type="checkbox" id="reset-wipe-disk" class="mr-1">
+            Also delete downloaded video files on disk
+          </label>
+        </div>
+        <div class="flex gap-3">
+          <button
+            hx-post="/admin/factory-reset"
+            hx-include="#reset-wipe-disk"
+            hx-vals='js:{"wipe_disk": document.getElementById("reset-wipe-disk").checked ? "1" : "0"}'
+            hx-swap="innerHTML"
+            hx-target="#factory-reset-area"
+            hx-confirm="Last chance — wipe all operational data?"
+            class="px-4 py-2 rounded text-sm font-semibold"
+            style="background:#f85149; color:#fff; border:none; cursor:pointer;">
+            Yes, wipe everything
+          </button>
+          <button
+            onclick="document.getElementById('factory-reset-confirm').style.display='none'; document.querySelector('#factory-reset-area > button').style.display='';"
+            class="px-4 py-2 rounded text-sm"
+            style="background:#21262d; color:#8b949e; border:1px solid #30363d; cursor:pointer;">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Bad OAuth Tokens ── -->
+  <div class="rounded-lg border p-6 mb-6" style="background:#161b22; border-color:#d2992266;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <h2 class="text-lg font-semibold" style="color:#d29922;">Bad OAuth Tokens</h2>
+      <button
+        hx-post="/admin/clear-bad-tokens"
+        hx-target="#bad-tokens-list"
+        hx-swap="innerHTML"
+        hx-confirm="Delete all invalid / orphaned OAuth tokens and their projects?"
+        class="px-3 py-1.5 rounded text-xs font-semibold"
+        style="background:#21262d; color:#d29922; border:1px solid #d29922; cursor:pointer;">
+        Clear all bad tokens
+      </button>
+    </div>
+    <p class="text-sm mb-4" style="color:#8b949e;">
+      Tokens flagged <em>needs_reauth</em> or with no linked project.
+      These cause the red banner and startup log errors but do not affect uploads.
+      Deleting a token also removes its linked Google Cloud project entry.
+    </p>
+    <div id="bad-tokens-list"
+         hx-get="/admin/bad-tokens"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+      <span style="color:#8b949e;font-size:13px;">Loading…</span>
+    </div>
+  </div>
+
+  <!-- ── Lightweight cleanups ── -->
+  <div class="rounded-lg border p-6 mb-6" style="background:#161b22; border-color:#30363d;">
+    <h2 class="text-lg font-semibold mb-1" style="color:#f0f6fc;">Lightweight Cleanups</h2>
+    <p class="text-sm mb-5" style="color:#8b949e;">Targeted resets that don't touch configuration.</p>
+
+    <div class="flex flex-col gap-4">
+
+      <!-- Clear failed jobs -->
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <div class="text-sm font-medium" style="color:#f0f6fc;">Clear failed downloads</div>
+          <div class="text-xs" style="color:#8b949e;">Delete all failed jobs + DLQ rows so the queue is clean. Does not re-queue anything.</div>
+        </div>
+        <button
+          hx-post="/admin/clear-failed"
+          hx-swap="none"
+          hx-confirm="Delete all failed jobs and DLQ rows?"
+          class="px-3 py-1.5 rounded text-xs font-semibold whitespace-nowrap"
+          style="background:#21262d; color:#d29922; border:1px solid #d29922; cursor:pointer;"
+          hx-on::after-request="showAdminToast(event)">
+          Clear failed
+        </button>
+      </div>
+
+      <!-- Clear upload history -->
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <div class="text-sm font-medium" style="color:#f0f6fc;">Clear upload history</div>
+          <div class="text-xs" style="color:#8b949e;">Wipe upload_results, upload_progress and upload_ledger. Jobs stay intact.</div>
+        </div>
+        <button
+          hx-post="/admin/clear-upload-history"
+          hx-swap="none"
+          hx-confirm="Clear all upload history?"
+          class="px-3 py-1.5 rounded text-xs font-semibold whitespace-nowrap"
+          style="background:#21262d; color:#d29922; border:1px solid #d29922; cursor:pointer;"
+          hx-on::after-request="showAdminToast(event)">
+          Clear history
+        </button>
+      </div>
+
+      <!-- Reset catalog hydration -->
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <div class="text-sm font-medium" style="color:#f0f6fc;">Reset catalog hydration</div>
+          <div class="text-xs" style="color:#8b949e;">Clear hydrated_at on all catalog rows so Date/Views are re-fetched on next hydration pass.</div>
+        </div>
+        <button
+          hx-post="/admin/reset-hydration"
+          hx-swap="none"
+          hx-confirm="Reset catalog hydration timestamps?"
+          class="px-3 py-1.5 rounded text-xs font-semibold whitespace-nowrap"
+          style="background:#21262d; color:#58a6ff; border:1px solid #58a6ff; cursor:pointer;"
+          hx-on::after-request="showAdminToast(event)">
+          Reset hydration
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="admin-toast" style="display:none; position:fixed; bottom:24px; right:24px; z-index:999;
+       padding:10px 18px; border-radius:8px; font-size:13px; font-weight:600;
+       background:#0d1117; border:1px solid #30363d; color:#f0f6fc; box-shadow:0 4px 16px #0008;">
+  </div>
+</div>
+
+<script>
+function showAdminToast(event) {
+  const toast = document.getElementById('admin-toast');
+  const ok = event.detail.successful;
+  toast.style.background = ok ? '#0d2b1a' : '#2b0d0d';
+  toast.style.borderColor = ok ? '#3fb950' : '#f85149';
+  toast.style.color       = ok ? '#3fb950' : '#f85149';
+  toast.textContent = event.detail.xhr.responseText || (ok ? 'Done' : 'Error');
+  toast.style.display = 'block';
+  clearTimeout(window._adminToastTimer);
+  window._adminToastTimer = setTimeout(() => { toast.style.display = 'none'; }, 4000);
+}
+</script>
+{% endblock %}

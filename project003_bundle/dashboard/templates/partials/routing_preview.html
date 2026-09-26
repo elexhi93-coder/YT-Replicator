@@ -1,0 +1,116 @@
+{# Routing dry-run preview panel: shows what would happen, lets user commit or cancel. #}
+<div class="rounded p-4" style="background: var(--surface); border: 1px solid var(--border);">
+  <div class="flex items-center justify-between mb-3">
+    <div>
+      <div class="text-base font-semibold" style="color: var(--text);">
+        Preview: {{ source.name }}
+        <span class="text-xs ml-2" style="color: var(--text-muted);">(dry-run, nothing written yet)</span>
+      </div>
+      <div class="text-xs mt-1" style="color: var(--text-muted);">
+        Scanned {{ total_videos }} catalog video(s).
+      </div>
+    </div>
+    <button hx-get="/partials/routing/matrix"
+            hx-target="#routing-matrix" hx-swap="innerHTML"
+            onclick="document.getElementById('rule-panel').innerHTML=''"
+            class="px-3 py-1 text-xs rounded"
+            style="background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border);">✕ Close</button>
+  </div>
+
+  <div class="grid grid-cols-4 gap-3 mb-4">
+    <div class="rounded p-3" style="background: var(--surface-2); border: 1px solid var(--border);">
+      <div class="text-xs uppercase" style="color: var(--text-muted);">Matched</div>
+      <div class="text-2xl font-bold" style="color: var(--text);">{{ matched }}</div>
+    </div>
+    <div class="rounded p-3" style="background: var(--surface-2); border: 1px solid var(--success);">
+      <div class="text-xs uppercase" style="color: var(--success);">Would enqueue</div>
+      <div class="text-2xl font-bold" style="color: var(--success);">{{ would_enqueue }}</div>
+    </div>
+    <div class="rounded p-3" style="background: var(--surface-2); border: 1px solid var(--border);">
+      <div class="text-xs uppercase" style="color: var(--text-muted);">Already in ledger</div>
+      <div class="text-2xl font-bold" style="color: var(--text-muted);">{{ would_skip }}</div>
+    </div>
+    <div class="rounded p-3" style="background: var(--surface-2); border: 1px solid var(--border);">
+      <div class="text-xs uppercase" style="color: var(--text-muted);">No matching rule</div>
+      <div class="text-2xl font-bold" style="color: var(--text-muted);">{{ no_match }}</div>
+    </div>
+  </div>
+
+  <div class="flex items-center gap-2 mb-4">
+    {% if would_enqueue > 0 %}
+      <button hx-post="/api/routing/run/{{ source.id }}?triggered_by=manual"
+              hx-confirm="COMMIT: enqueue {{ would_enqueue }} new ledger row(s) for source '{{ source.name }}'? This is the real action."
+              hx-target="#rule-panel" hx-swap="innerHTML"
+              class="px-4 py-1.5 text-sm rounded font-medium"
+              style="background: var(--success); color: #0d1117;">
+        ✓ Commit ({{ would_enqueue }} new rows)
+      </button>
+    {% else %}
+      <button disabled class="px-4 py-1.5 text-sm rounded font-medium opacity-50 cursor-not-allowed"
+              style="background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border);">
+        Nothing to enqueue
+      </button>
+    {% endif %}
+    <button hx-get="/partials/routing/matrix"
+            hx-target="#routing-matrix" hx-swap="innerHTML"
+            onclick="document.getElementById('rule-panel').innerHTML=''"
+            class="px-4 py-1.5 text-sm rounded"
+            style="background: var(--surface-2); color: var(--text); border: 1px solid var(--border);">Cancel</button>
+  </div>
+
+  {% if sample_enqueue %}
+    <div class="mb-3">
+      <div class="text-xs font-semibold mb-1" style="color: var(--success);">
+        WOULD ENQUEUE (showing first {{ sample_enqueue|length }} of {{ would_enqueue }})
+      </div>
+      <table class="min-w-full text-xs">
+        <thead>
+          <tr style="background: var(--surface-2); border-bottom: 1px solid var(--border);">
+            <th class="text-left px-2 py-1" style="color: var(--text-muted);">Video</th>
+            <th class="text-left px-2 py-1" style="color: var(--text-muted);">Title</th>
+            <th class="text-left px-2 py-1" style="color: var(--text-muted);">→ Dest</th>
+            <th class="text-left px-2 py-1" style="color: var(--text-muted);">Rule</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in sample_enqueue %}
+            <tr style="border-bottom: 1px solid var(--border);">
+              <td class="px-2 py-1 font-mono" style="color: var(--text-muted);">{{ r.video_id }}</td>
+              <td class="px-2 py-1" style="color: var(--text);">{{ r.title[:80] }}</td>
+              <td class="px-2 py-1" style="color: var(--accent);">#{{ r.destination_id }}</td>
+              <td class="px-2 py-1" style="color: var(--text-muted);">{{ r.rule_label }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+
+  {% if sample_skip %}
+    <div class="mt-4">
+      <details>
+        <summary class="text-xs font-semibold cursor-pointer" style="color: var(--text-muted);">
+          ALREADY IN LEDGER (showing first {{ sample_skip|length }} of {{ would_skip }}) — click to expand
+        </summary>
+        <table class="min-w-full text-xs mt-2">
+          <thead>
+            <tr style="background: var(--surface-2); border-bottom: 1px solid var(--border);">
+              <th class="text-left px-2 py-1" style="color: var(--text-muted);">Video</th>
+              <th class="text-left px-2 py-1" style="color: var(--text-muted);">Title</th>
+              <th class="text-left px-2 py-1" style="color: var(--text-muted);">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in sample_skip %}
+              <tr style="border-bottom: 1px solid var(--border);">
+                <td class="px-2 py-1 font-mono" style="color: var(--text-muted);">{{ r.video_id }}</td>
+                <td class="px-2 py-1" style="color: var(--text);">{{ r.title[:80] }}</td>
+                <td class="px-2 py-1" style="color: var(--text-muted);">{{ r.ledger_status }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </details>
+    </div>
+  {% endif %}
+</div>

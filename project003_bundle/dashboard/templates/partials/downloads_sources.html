@@ -1,0 +1,189 @@
+{# Renders the channels grid for the Downloads tab. #}
+{% if flash %}
+<div class="mb-3 px-3 py-2 rounded text-sm"
+     style="background: #1c2c1c; color: #7ee787; border: 1px solid #2ea043;">
+  {{ flash }}
+</div>
+{% endif %}
+
+{% if not channels %}
+<p style="color: #8b949e;">
+  No channels available{% if selected_pipeline_id %} in this pipeline{% endif %}.
+  Add one from the <a href="/pipelines" style="color: #58a6ff;">Pipelines</a> tab.
+</p>
+{% else %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+  {% for c in channels %}
+  <div class="download-channel-card rounded p-3"
+       data-channel-name="{{ c.name|lower }}"
+      data-priority="{{ c.download_priority or 100 }}"
+      data-active="{{ 1 if c.active else 0 }}"
+      data-has-activity="{{ 1 if c.has_activity else 0 }}"
+      data-original-order="{{ loop.index0 }}"
+       style="background: #161b22; border: 1px solid #30363d;">
+    <div class="flex items-start justify-between mb-2">
+      <div class="min-w-0">
+        <div class="font-semibold text-white truncate" title="{{ c.name }}">{{ c.name }}</div>
+        <div class="text-xs truncate flex items-center gap-1" style="color: #8b949e;"
+             title="{{ c.pipeline_name or '' }}">
+          <span>{{ c.pipeline_name or '—' }}</span>
+          {% if c.pipeline_id %}
+          <a href="/downloads?pipeline_id={{ c.pipeline_id }}"
+             class="text-xs px-1 rounded hover:underline"
+             style="color:#58a6ff;font-size:10px;"
+             title="Filter Downloads by this pipeline">⟶ Pipeline</a>
+          {% endif %}
+          {% if not c.active and c.has_activity %}
+          <span class="px-1 rounded"
+                style="font-size:10px;background:#2c2a17;color:#d29922;"
+                title="Channel is paused but shown because it has existing download/job activity">paused + activity</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="text-xs whitespace-nowrap flex items-center gap-2" style="color: #8b949e;">
+        <label class="inline-flex items-center gap-1"
+               title="Select this channel for bulk queue">
+          <input type="checkbox"
+                 class="download-channel-select"
+                 style="accent-color:#238636;" />
+          <span style="font-size:10px;color:#8b949e;">pick</span>
+        </label>
+        <span class="px-1 py-0.5 rounded"
+              style="font-size:10px;background:#0d1117;border:1px solid #30363d;color:#58a6ff;"
+              title="Download priority (lower runs first)">P{{ c.download_priority or 100 }}</span>
+        {% if c.download_unlimited %}
+          <span title="Daily cap bypassed — downloads run until queue is empty"
+                style="color: #d2a8ff;">∞ unlimited</span>
+        {% else %}
+          cap {{ c.uploads_today or 0 }}/{{ c.daily_limit or 0 }}
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="flex flex-wrap gap-1 mb-3 text-xs">
+      {% set jc = c.job_counts %}
+      {% if jc.pending %}
+      <span class="px-1.5 py-0.5 rounded"
+            style="background: #2c2a17; color: #d29922;">{{ jc.pending }} pending</span>
+      {% endif %}
+      {% if jc.downloaded or jc.processing or jc.processed or jc.uploading %}
+      <span class="px-1.5 py-0.5 rounded"
+            style="background: #122b40; color: #58a6ff;">
+        {{ (jc.downloaded or 0) + (jc.processing or 0) + (jc.processed or 0) + (jc.uploading or 0) }} in flight
+      </span>
+      {% endif %}
+      {% if jc.done %}
+      <span class="px-1.5 py-0.5 rounded"
+            style="background: #11321b; color: #3fb950;">{{ jc.done }} done</span>
+      {% endif %}
+      {% if jc.failed %}
+      <span class="px-1.5 py-0.5 rounded"
+            style="background: #2d1416; color: #f85149;">{{ jc.failed }} failed</span>
+      {% endif %}
+      {% if c.backfill_remaining %}
+      <span class="px-1.5 py-0.5 rounded"
+            style="background: #1c222b; color: #c9d1d9;">
+        backfill {{ c.backfill_remaining }}
+      </span>
+      {% endif %}
+    </div>
+
+    <form hx-post="/downloads/trigger/{{ c.id }}"
+          hx-target="#downloads-sources"
+          hx-swap="innerHTML"
+          class="download-trigger-form space-y-2">
+      {% if selected_pipeline_id %}
+      <input type="hidden" name="pipeline_id" value="{{ selected_pipeline_id }}">
+      {% endif %}
+      <div class="flex items-center gap-2">
+        <label class="text-[11px]" style="color: #8b949e;">how many</label>
+        <input type="number" name="count" value="5" min="1" max="500"
+               class="js-queue-count w-16 text-xs px-2 py-1 rounded"
+               style="background: #0d1117; color: #e6edf3; border: 1px solid #30363d;" />
+        <label class="text-[11px] ml-auto" style="color: #8b949e;">order</label>
+        <select name="direction"
+          class="js-queue-direction text-xs px-2 py-1 rounded"
+                style="background: #0d1117; color: #e6edf3; border: 1px solid #30363d;">
+          <option value="newest">↓ newest first</option>
+          <option value="oldest">↑ oldest first</option>
+        </select>
+      </div>
+      <div class="flex items-center gap-2">
+        <label class="text-[11px]" style="color: #8b949e;">priority</label>
+        <button type="button"
+                form="priority-form-{{ c.id }}"
+                onclick="(function(){var f=document.getElementById('priority-form-{{ c.id }}');var i=f.querySelector('[name=priority]');i.value=Math.max(1,parseInt(i.value||100)-10);f.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));})();"
+                class="px-1.5 py-1 text-xs rounded"
+                style="background:#21262d;color:#8b949e;border:1px solid #30363d;"
+                title="Increase priority (lower number = higher priority)">▲</button>
+        <input type="number"
+               name="priority"
+               form="priority-form-{{ c.id }}"
+               value="{{ c.download_priority or 100 }}"
+               min="1"
+               max="9999"
+               class="w-16 text-xs px-2 py-1 rounded text-center"
+               style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;"
+               title="Lower number runs first" />
+        <button type="button"
+                form="priority-form-{{ c.id }}"
+                onclick="(function(){var f=document.getElementById('priority-form-{{ c.id }}');var i=f.querySelector('[name=priority]');i.value=Math.min(9999,parseInt(i.value||100)+10);f.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));})();"
+                class="px-1.5 py-1 text-xs rounded"
+                style="background:#21262d;color:#8b949e;border:1px solid #30363d;"
+                title="Lower priority (higher number = lower priority)">▼</button>
+        <button type="submit"
+                form="priority-form-{{ c.id }}"
+                class="px-2 py-1 text-xs rounded"
+                style="background:#21262d;color:#58a6ff;border:1px solid #30363d;"
+                title="Save priority">save</button>
+        <span class="text-[11px] ml-auto" style="color:#8b949e;">lower = higher priority</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button type="submit"
+                class="px-2 py-1 text-xs rounded font-medium flex-1"
+                style="background: #238636; color: white;">
+          ⤓ Queue downloads
+        </button>
+        <button type="button"
+                hx-post="/downloads/channels/{{ c.id }}/toggle-active"
+                hx-vals='{"pipeline_id": "{{ selected_pipeline_id or "" }}"}'
+                hx-target="#downloads-sources"
+                hx-swap="innerHTML"
+                class="px-2 py-1 text-xs rounded"
+                title="{% if c.active %}Pause this channel (watcher will skip it){% else %}Resume this channel{% endif %}"
+                style="background: {% if c.active %}#21262d{% else %}#1c3020{% endif %};
+                       color: {% if c.active %}#8b949e{% else %}#3fb950{% endif %};
+                       border: 1px solid {% if c.active %}#30363d{% else %}#3fb950{% endif %};">
+          {% if c.active %}⏸{% else %}▶{% endif %}
+        </button>
+        <button type="button"
+                hx-post="/downloads/channels/{{ c.id }}/toggle-unlimited"
+                hx-vals='{"pipeline_id": "{{ selected_pipeline_id or "" }}"}'
+                hx-target="#downloads-sources"
+                hx-swap="innerHTML"
+                class="px-2 py-1 text-xs rounded"
+                title="{% if c.download_unlimited %}Re-enable daily cap{% else %}Bypass daily cap and download everything{% endif %}"
+                style="background: {% if c.download_unlimited %}#1f1432{% else %}#21262d{% endif %};
+                       color: {% if c.download_unlimited %}#d2a8ff{% else %}#8b949e{% endif %};
+                       border: 1px solid {% if c.download_unlimited %}#553098{% else %}#30363d{% endif %};">
+          {% if c.download_unlimited %}∞ on{% else %}∞ off{% endif %}
+        </button>
+        <a href="{{ c.url }}" target="_blank" rel="noopener"
+           class="text-xs px-2 py-1 rounded" style="color: #58a6ff; border: 1px solid #30363d;"
+           title="Open channel on YouTube">↗ YT</a>
+      </div>
+    </form>
+
+    <form id="priority-form-{{ c.id }}"
+          hx-post="/downloads/channels/{{ c.id }}/priority"
+          hx-target="#downloads-sources"
+          hx-swap="innerHTML"
+          class="hidden">
+      {% if selected_pipeline_id %}
+      <input type="hidden" name="pipeline_id" value="{{ selected_pipeline_id }}">
+      {% endif %}
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}

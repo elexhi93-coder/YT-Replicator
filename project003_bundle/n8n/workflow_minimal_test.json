@@ -1,0 +1,71 @@
+{
+  "name": "project003 — Minimal YouTube Test",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## ✅ MINIMAL WORKFLOW — 3 NODES\n\n**Webhook → Read File → YouTube Upload**\n\nNo AI, no path translation, no DB callbacks. Just upload.\n\n### Setup (1 step):\nClick **YouTube Upload** → attach your YouTube OAuth2 credential.\n\n### How to test:\n```bash\ncurl -X POST http://localhost:5678/webhook-test/yt-min \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"file\":\"/shared/downloads/SOMETHING/video.mp4\",\"title\":\"Test upload\"}'\n```\n\nThe `file` path must be the path **inside the n8n container** — i.e. start with `/shared/downloads/...`",
+        "height": 280,
+        "width": 520,
+        "color": 4
+      },
+      "id": "sticky-1",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [240, -60]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "yt-min",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "yt-min"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $json.body.file }}",
+        "options": {}
+      },
+      "id": "read-file",
+      "name": "Read Video File",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "title":       "={{ $('Webhook').first().json.body.title }}",
+        "categoryId":  "22",
+        "privacyStatus": "unlisted",
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "id": "youtube-upload",
+      "name": "YouTube Upload",
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [680, 300]
+    }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[{ "node": "Read Video File", "type": "main", "index": 0 }]] },
+    "Read Video File": { "main": [[{ "node": "YouTube Upload",  "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "staticData": null,
+  "tags": ["test"],
+  "pinData": {}
+}

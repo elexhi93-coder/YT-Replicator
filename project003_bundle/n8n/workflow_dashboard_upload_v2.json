@@ -1,0 +1,151 @@
+{
+  "id": "p003-upload-v2",
+  "name": "project003 — YouTube Upload v2 (AI + Dashboard)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## ✅ Plug-and-play\n\nThis workflow is pre-wired to:\n- Credential **Bearer Auth account** (OpenRouter key) on the AI node\n- Webhook path **POST /webhook/idm-yt-download**\n- Hand-off to **http://dashboard:8080/api/upload/youtube**\n\n### After import\n1. Make sure no other workflow uses the same webhook path.\n2. Toggle **Active** (top-right).\n\n### AI prompts\nEdit them in **Prepare → AI Config** code node (DEFAULT_AI_SYSTEM, DEFAULT_AI_USER_TEMPLATE).\nThe payload can override them per-call via `ai_system_prompt`, `ai_user_template`, `ai_model`, `ai_enabled`.",
+        "height": 320,
+        "width": 540,
+        "color": 4
+      },
+      "id": "sticky-setup",
+      "name": "Setup Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [220, -120]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "idm-yt-download",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook: IDM-YT Download",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "idm-yt-download"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === Prepare → AI Config ===\n// Normalize the incoming watcher payload and bake the AI prompt context.\n// Edit DEFAULT_AI_* below to change the AI behavior for ALL destinations.\n// Per-call overrides: ai_enabled, ai_model, ai_system_prompt, ai_user_template.\n\nconst raw  = $input.first().json;\nconst body = raw.body && typeof raw.body === 'object' ? raw.body : raw;\n\nif (!body.file_path) throw new Error('No file_path in payload. Got keys: ' + Object.keys(body).join(','));\nif (!body.title)     throw new Error('No title in payload');\n\nconst DEFAULT_AI_MODEL  = 'openrouter/auto';\nconst DEFAULT_AI_SYSTEM = `You are a YouTube SEO expert rewriting metadata for a manhwa/manhua recap channel.\n\nReturn ONLY a raw JSON object (no markdown, no code fences) with these keys:\n- youtube_title:       string, max 100 chars. Clickbait but accurate. Same language as the original. Strip any source-channel branding from the original title.\n- youtube_description: string, 150-400 chars. Hook in line 1, 2-3 sentences of intrigue, no spoilers of the ending.\n- youtube_tags:        array of 10-15 short lowercase strings (e.g. \"manhwa recap\", \"sss rank\", \"awakening\").`;\nconst DEFAULT_AI_USER_TEMPLATE = `Original title: {title}\nSource channel: {channel_name}\nDestination channel: {destination_channel}\nDuration (seconds): {duration}\nOriginal description: {description}\n\nRewrite for our destination channel.`;\n\nconst aiEnabled  = body.ai_enabled !== false && body.ai_enabled !== 0;\nconst aiModel    = (body.ai_model || '').trim() || DEFAULT_AI_MODEL;\nconst aiSystem   = (body.ai_system_prompt || '').trim() || DEFAULT_AI_SYSTEM;\nconst aiTemplate = (body.ai_user_template || '').trim() || DEFAULT_AI_USER_TEMPLATE;\n\nconst tagsStr     = Array.isArray(body.tags) ? body.tags.join(', ') : '';\nconst destLabel   = body.destination_label    || '';\nconst destChannel = body.destination_channel  || destLabel;\nconst destPlatform= body.destination_platform || '';\n\nconst render = (str) => str\n  .replace(/\\{title\\}/g,                body.title || '')\n  .replace(/\\{channel_name\\}/g,         body.channel_name || '')\n  .replace(/\\{description\\}/g,          body.description || '')\n  .replace(/\\{tags\\}/g,                 tagsStr)\n  .replace(/\\{duration\\}/g,             String(body.duration || 0))\n  .replace(/\\{source_url\\}/g,           body.source_url || '')\n  .replace(/\\{destination_label\\}/g,    destLabel)\n  .replace(/\\{destination_channel\\}/g,  destChannel)\n  .replace(/\\{destination_platform\\}/g, destPlatform);\n\nreturn [{ json: {\n  job_id:         body.job_id         ?? null,\n  destination_id: body.destination_id ?? null,\n  pipeline_id:    body.pipeline_id    ?? null,\n  video_id:       body.video_id       ?? null,\n  title:          body.title          || 'Untitled Video',\n  file_path:      String(body.file_path).replace(/\\\\/g, '/'),\n  source_url:     body.source_url     || '',\n  channel_name:   body.channel_name   || '',\n  channel_id:     body.channel_id     || '',\n  duration:       body.duration       || 0,\n  description:    body.description    || `Downloaded from ${body.channel_name || 'YouTube'}.\\nSource: ${body.source_url || ''}`,\n  privacy_status: body.default_privacy || 'unlisted',\n  destination_label:    destLabel,\n  destination_channel:  destChannel,\n  destination_platform: destPlatform,\n  ai_enabled: aiEnabled,\n  ai_model:   aiModel,\n  ai_system:  render(aiSystem),\n  ai_user:    render(aiTemplate),\n} }];"
+      },
+      "id": "prepare-data",
+      "name": "Prepare + AI Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "ai-on",
+              "leftValue": "={{ $json.ai_enabled }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-ai-enabled",
+      "name": "AI enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "HTTP-Referer", "value": "https://github.com/project003" },
+            { "name": "X-Title", "value": "project003 Channel Replicator" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $json.ai_model, messages: [{ role: 'system', content: $json.ai_system }, { role: 'user', content: $json.ai_user }], temperature: 0.7, max_tokens: 800 }) }}",
+        "options": { "timeout": 30000, "response": { "response": { "fullResponse": false, "neverError": true } } }
+      },
+      "id": "node-ai-enrich",
+      "name": "AI: Enrich Metadata",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 220],
+      "continueOnFail": true,
+      "credentials": {
+        "httpBearerAuth": { "id": "rr4SUITwNXaFEIEM", "name": "Bearer Auth account" }
+      },
+      "notes": "Pre-wired to 'Bearer Auth account' (OpenRouter key). neverError so we always reach the merge step."
+    },
+    {
+      "parameters": {
+        "jsCode": "// === Merge AI result back with the original prepared payload ===\nconst original = $('Prepare + AI Config').first().json;\nconst aiResp   = $input.first().json;\n\nlet aiData = null;\nlet aiError = null;\n\ntry {\n  // OpenRouter returns either { choices: [...] } on success or { error: {...} } on failure.\n  if (aiResp && aiResp.error) {\n    aiError = aiResp.error.message || JSON.stringify(aiResp.error);\n  } else {\n    const content = aiResp?.choices?.[0]?.message?.content;\n    if (!content) {\n      aiError = 'No content in AI response: ' + JSON.stringify(aiResp).slice(0, 200);\n    } else {\n      const cleaned = content.replace(/```json/gi, '').replace(/```/g, '').trim();\n      aiData = JSON.parse(cleaned);\n    }\n  }\n} catch (e) {\n  aiError = 'Parse failed: ' + e.message;\n}\n\nconst title       = (aiData?.youtube_title       || original.title).substring(0, 100);\nconst description = (aiData?.youtube_description || original.description).substring(0, 4900);\nconst tags        =  aiData?.youtube_tags        || [];\n\nreturn [{ json: {\n  job_id:         original.job_id,\n  destination_id: original.destination_id,\n  pipeline_id:    original.pipeline_id,\n  video_id:       original.video_id,\n  file_path:      original.file_path,\n  title, description, tags,\n  category_id:    '22',\n  privacy_status: original.privacy_status,\n  ai_used:        !!aiData,\n  ai_title:       aiData?.youtube_title       || '',\n  ai_description: aiData?.youtube_description || '',\n  ai_tags:        aiData?.youtube_tags        || [],\n  ai_error:       aiError,\n  ai_model:       original.ai_model,\n} }];"
+      },
+      "id": "node-ai-parse",
+      "name": "Merge AI Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 220]
+    },
+    {
+      "parameters": {
+        "jsCode": "// === Passthrough when AI is disabled ===\nconst o = $input.first().json;\nreturn [{ json: {\n  job_id: o.job_id, destination_id: o.destination_id, pipeline_id: o.pipeline_id, video_id: o.video_id,\n  file_path: o.file_path,\n  title: o.title.substring(0, 100),\n  description: (o.description || '').substring(0, 4900),\n  tags: [],\n  category_id: '22',\n  privacy_status: o.privacy_status,\n  ai_used: false, ai_title: '', ai_description: '', ai_tags: [], ai_error: null,\n  ai_model: o.ai_model,\n} }];"
+      },
+      "id": "node-no-ai",
+      "name": "Skip AI (passthrough)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://dashboard:8080/api/upload/youtube",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "handoff-dashboard",
+      "name": "Hand off → Dashboard upload",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 300],
+      "notes": "Dashboard does the resumable YouTube upload and streams progress via SSE at /queue."
+    }
+  ],
+  "connections": {
+    "Webhook: IDM-YT Download": { "main": [[{ "node": "Prepare + AI Config", "type": "main", "index": 0 }]] },
+    "Prepare + AI Config":      { "main": [[{ "node": "AI enabled?",          "type": "main", "index": 0 }]] },
+    "AI enabled?": {
+      "main": [
+        [{ "node": "AI: Enrich Metadata",   "type": "main", "index": 0 }],
+        [{ "node": "Skip AI (passthrough)", "type": "main", "index": 0 }]
+      ]
+    },
+    "AI: Enrich Metadata":      { "main": [[{ "node": "Merge AI Result",            "type": "main", "index": 0 }]] },
+    "Merge AI Result":          { "main": [[{ "node": "Hand off → Dashboard upload", "type": "main", "index": 0 }]] },
+    "Skip AI (passthrough)":    { "main": [[{ "node": "Hand off → Dashboard upload", "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [],
+  "pinData": {}
+}

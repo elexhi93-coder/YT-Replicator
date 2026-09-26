@@ -1,0 +1,306 @@
+{# Ready-to-upload list: one card per (job × pending destination). #}
+
+{# ── Sort & Channel filter bar (always shown) ──────────────────── #}
+<div class="flex items-center gap-3 mb-3 flex-wrap text-xs">
+  <label class="flex items-center gap-1.5" style="color: #8b949e;">
+    Sort
+    <select id="ready-sort"
+            class="rounded px-2 py-1"
+            style="background: #0d1117; color: #c9d1d9; border: 1px solid #30363d;"
+            onchange="applyReadyFilters()">
+      <option value="date_desc"     {% if sort == 'date_desc'     %}selected{% endif %}>Newest first</option>
+      <option value="date_asc"      {% if sort == 'date_asc'      %}selected{% endif %}>Oldest first</option>
+      <option value="duration_desc" {% if sort == 'duration_desc' %}selected{% endif %}>Longest first</option>
+      <option value="duration_asc"  {% if sort == 'duration_asc'  %}selected{% endif %}>Shortest first</option>
+      <option value="size_desc"     {% if sort == 'size_desc'     %}selected{% endif %}>Largest first</option>
+      <option value="size_asc"      {% if sort == 'size_asc'      %}selected{% endif %}>Smallest first</option>
+    </select>
+  </label>
+
+  {% if channels %}
+  <label class="flex items-center gap-1.5 ml-2" style="color: #8b949e;">
+    Channel
+    <select id="ready-channel"
+            class="rounded px-2 py-1"
+            style="background: #0d1117; color: #c9d1d9; border: 1px solid #30363d;"
+            onchange="applyReadyFilters()">
+      <option value="">All channels</option>
+      {% for ch in channels %}
+      <option value="{{ ch }}" {% if channel_filter == ch %}selected{% endif %}>{{ ch }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  {% if channel_filter %}
+  <button type="button"
+          class="px-2 py-0.5 rounded"
+          style="background: #21262d; color: #8b949e; border: 1px solid #30363d;"
+          onclick="document.getElementById('ready-channel').value=''; applyReadyFilters();">
+    ✕ clear
+  </button>
+  {% endif %}
+  {% endif %}
+</div>
+
+{% if not items %}
+  <div class="text-sm italic py-2" style="color: #8b949e;">
+    {% if channel_filter %}
+      No videos ready to upload for <strong style="color:#c9d1d9;">{{ channel_filter }}</strong>.
+    {% else %}
+      Nothing ready. Either no downloads have completed yet, or every download
+      has already been uploaded to all of its routed destinations.
+    {% endif %}
+  </div>
+{% else %}
+<form id="ready-form" hx-post="/api/uploads/bulk" hx-ext="json-enc"
+      hx-swap="none"
+      hx-on::after-request="window.showToast('Bulk upload queued', 'success'); htmx.trigger('#uploads-ready','refresh')">
+
+  {# ── Toolbar ──────────────────────────────────────────────────── #}
+  <div class="flex items-center justify-between mb-3 px-1">
+    <div class="flex items-center gap-3 text-xs">
+      <label class="flex items-center gap-1" style="color: #c9d1d9;">
+        <input type="checkbox" id="ready-select-all"
+               onclick="document.querySelectorAll('.ready-row-cb').forEach(c=>{c.checked=this.checked;readyCardToggleSelect(c)})">
+        Select all
+      </label>
+      <span style="color: #8b949e;">
+        {% set t = total if total is defined else items|length %}
+        {% if t > items|length %}showing {{ items|length }} of {{ t }} pending{% else %}{{ t }} pending{% endif %}
+      </span>
+    </div>
+    <div class="flex items-center gap-2 text-xs flex-wrap justify-end">
+      <label style="color: #8b949e;">
+        Privacy
+        <select name="privacy" class="ml-1 rounded px-1.5 py-0.5"
+                style="background: #0d1117; color: #c9d1d9; border: 1px solid #30363d;">
+          <option value="">(per-destination default)</option>
+          <option value="unlisted">unlisted</option>
+          <option value="private">private</option>
+          <option value="public">public</option>
+        </select>
+      </label>
+      <label style="color: #8b949e;"
+             title="Override comments setting for this batch. Note: YouTube Data API v3 cannot toggle comments on insert — applied via n8n / Studio.">
+        💬 Comments
+        <select name="comments_enabled" class="ml-1 rounded px-1.5 py-0.5"
+                style="background: #0d1117; color: #c9d1d9; border: 1px solid #30363d;">
+          <option value="">(default)</option>
+          <option value="1">force ON</option>
+          <option value="0">force OFF</option>
+        </select>
+      </label>
+      <label style="color: #8b949e;"
+             title="COPPA: mark these uploads as made for kids.">
+        🧒 Kids
+        <select name="made_for_kids" class="ml-1 rounded px-1.5 py-0.5"
+                style="background: #0d1117; color: #c9d1d9; border: 1px solid #30363d;">
+          <option value="">(default)</option>
+          <option value="1">force ON</option>
+          <option value="0">force OFF</option>
+        </select>
+      </label>
+      <label style="color: #8b949e;"
+             title="Subscribers notified on upload.">
+        🔔 Notify
+        <select name="notify_subscribers" class="ml-1 rounded px-1.5 py-0.5"
+                style="background: #0d1117; color: #c9d1d9; border: 1px solid #30363d;">
+          <option value="">(default)</option>
+          <option value="1">force ON</option>
+          <option value="0">force OFF</option>
+        </select>
+      </label>
+      <label style="color: #8b949e;"
+             title="Extra tags appended to AI/per-destination tags (comma-separated).">
+        🏷 Tags+
+        <input type="text" name="tags_extra" placeholder="(none)"
+               class="ml-1 rounded px-1.5 py-0.5 w-40"
+               style="background: #0d1117; color: #c9d1d9; border: 1px solid #30363d;" />
+      </label>
+      <label class="flex items-center gap-1" style="color: #8b949e;">
+        <input type="checkbox" name="use_ai" value="1" checked> Use AI
+      </label>
+      <button type="submit"
+              class="px-3 py-1 rounded font-medium"
+              style="background: #238636; color: #ffffff;">
+        ▶ Upload selected
+      </button>
+    </div>
+  </div>
+
+  {# ── Card list ─────────────────────────────────────────────────── #}
+  <div class="space-y-2">
+    {% for it in items %}
+    <div class="rounded p-3 flex items-start gap-3"
+         id="ready-card-{{ it.job_id }}-{{ it.destination_id }}"
+         style="background: #0d1117; border: 1px solid #30363d; transition: background 0.2s, border-color 0.2s;">
+
+      {# order number #}
+      <span class="flex-shrink-0 text-xs font-bold flex items-center justify-center mt-0.5"
+            style="min-width:1.5rem; height:1.5rem; background:#161b22; color:#6e7681; border:1px solid #30363d; border-radius:50%; font-size:10px;">
+        {{ loop.index }}
+      </span>
+
+      {# checkbox #}
+      <input type="checkbox" class="ready-row-cb mt-1 flex-shrink-0"
+             name="targets[]"
+             value="{{ it.job_id }}:{{ it.destination_id }}"
+             onchange="readyCardToggleSelect(this)">
+
+      {# thumbnail #}
+      {% if it.disp_thumb %}
+      <a href="https://www.youtube.com/watch?v={{ it.source_video_id }}"
+         target="_blank" rel="noopener" class="flex-shrink-0">
+        <img src="{{ it.disp_thumb }}" alt=""
+             loading="lazy"
+             class="rounded"
+             style="width: 120px; height: 68px; object-fit: cover; border: 1px solid #30363d;" />
+      </a>
+      {% else %}
+      <div class="flex-shrink-0 rounded flex items-center justify-center"
+           style="width: 120px; height: 68px; background: #161b22; border: 1px solid #30363d; color: #6e7681; font-size: 11px;">
+        no thumb
+      </div>
+      {% endif %}
+
+      {# main column #}
+      <div class="flex-1 min-w-0">
+        <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0">
+            <div class="font-medium text-white truncate"
+                 style="max-width: 520px;" title="{{ it.title }}">
+              {{ it.title }}
+            </div>
+            <div class="text-xs mt-0.5 font-mono truncate" style="color: #8b949e;">
+              {{ it.channel_name or '—' }} · job #{{ it.job_id }} · {{ it.source_video_id }}
+            </div>
+          </div>
+          <span class="px-2 py-0.5 rounded text-xs font-medium flex-shrink-0"
+                style="background: #161b22; color: #c9d1d9; border: 1px solid #30363d;"
+                title="{{ it.platform }}">
+            → {{ it.dest_label }}
+          </span>
+        </div>
+
+        {# metadata pill row #}
+        <div class="flex flex-wrap items-center gap-3 mt-2 text-xs font-mono"
+             style="color: #c9d1d9;">
+          {% if it.disp_duration %}
+          <span title="Length">⏱ {{ it.disp_duration }}</span>
+          {% endif %}
+          {% if it.disp_views %}
+          <span title="Views{% if it.disp_likes %} · {{ it.disp_likes }} likes{% endif %}">
+            👁 {{ it.disp_views }}
+          </span>
+          {% endif %}
+          {% if it.disp_upload_date %}
+          <span title="Original upload date">📅 {{ it.disp_upload_date }}</span>
+          {% endif %}
+          {% if it.disp_resolution %}
+          <span title="Resolution{% if it.disp_res_long %} · {{ it.disp_res_long }}{% endif %}{% if it.disp_vcodec %} · codec: {{ it.disp_vcodec }}{% endif %}"
+                style="color: #79c0ff;">🎞 {{ it.disp_resolution }}</span>
+          {% endif %}
+          {% if it.disp_format %}
+          <span title="Container format" style="color: #d2a8ff;">📦 {{ it.disp_format }}</span>
+          {% endif %}
+          {% if it.size_bytes %}
+          <span title="{{ it.size_bytes }} bytes">💾 {{ it.size_h }}</span>
+          {% endif %}
+          <span class="ml-auto" style="color: #6e7681;"
+                title="downloaded {{ it.downloaded_at }}">
+            ↓ {{ (it.downloaded_at or '')[:16].replace('T',' ') }}
+          </span>
+        </div>
+
+        {% if it.last_error %}
+        <div class="text-xs mt-2 px-2 py-1 rounded"
+             style="background: #2d1416; color: #f85149; border: 1px solid #7d2027;"
+             title="{{ it.last_error }}">
+          ⚠ last failed: {{ it.last_error|truncate(120) }}
+        </div>
+        {% endif %}
+      </div>
+
+      {# action #}
+      <div class="flex-shrink-0 self-center">
+        <button type="button"
+                class="text-xs px-3 py-1.5 rounded font-medium"
+                style="background: #1f6feb; color: #ffffff;"
+                onclick="readyCardMarkQueued(this)"
+                hx-post="/api/uploads/manual"
+                hx-ext="json-enc"
+                hx-vals='{"job_id": {{ it.job_id }}, "destination_ids": [{{ it.destination_id }}], "use_ai": true}'
+                hx-swap="none"
+                hx-on::after-request="window.showToast('Upload started', 'success'); htmx.trigger('#uploads-ready','refresh'); htmx.trigger('#active-uploads','load')">
+          ▶ Upload
+        </button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</form>
+<script>
+  // bulk submit: convert checkbox values into JSON {targets: [{job_id, destination_id}]}
+  // (json-enc extension is loaded globally in base.html)
+  document.getElementById('ready-form').addEventListener('htmx:configRequest', function(evt) {
+    var fd = new FormData(evt.target);
+    var targets = [];
+    fd.getAll('targets[]').forEach(function(v){
+      var p = v.split(':');
+      targets.push({ job_id: parseInt(p[0],10), destination_id: parseInt(p[1],10) });
+    });
+    evt.detail.parameters = {
+      targets: targets,
+      privacy: fd.get('privacy') || '',
+      use_ai: fd.get('use_ai') ? true : false,
+    };
+  });
+</script>
+{% endif %}
+<script>
+  // Keep outer div's hx-get in sync with current filter state so auto-poll
+  // also uses the right params after the user changes a filter.
+  (function() {
+    var sort = {{ sort | tojson }};
+    var ch   = {{ channel_filter | tojson }};
+    var url  = '/partials/uploads/ready?sort=' + encodeURIComponent(sort);
+    if (ch) url += '&channel_filter=' + encodeURIComponent(ch);
+    var outer = document.getElementById('uploads-ready');
+    if (outer) outer.setAttribute('hx-get', url);
+  })();
+
+  function applyReadyFilters() {
+    var sortEl = document.getElementById('ready-sort');
+    var chEl   = document.getElementById('ready-channel');
+    var sort   = sortEl ? sortEl.value : 'date_desc';
+    var ch     = chEl ? chEl.value : '';
+    var url    = '/partials/uploads/ready?sort=' + encodeURIComponent(sort);
+    if (ch) url += '&channel_filter=' + encodeURIComponent(ch);
+    var outer = document.getElementById('uploads-ready');
+    if (outer) outer.setAttribute('hx-get', url);
+    htmx.ajax('GET', url, { target: '#uploads-ready', swap: 'innerHTML' });
+  }
+
+  function readyCardToggleSelect(cb) {
+    var card = cb.closest('[id^="ready-card-"]');
+    if (!card) return;
+    if (cb.checked) {
+      card.style.background   = '#0c1a2e';
+      card.style.borderColor  = '#388bfd';
+    } else {
+      card.style.background   = '#0d1117';
+      card.style.borderColor  = '#30363d';
+    }
+  }
+
+  function readyCardMarkQueued(btn) {
+    var card = btn.closest('[id^="ready-card-"]');
+    if (!card) return;
+    card.style.background  = '#0a1c0a';
+    card.style.borderColor = '#2ea043';
+    btn.textContent = '✓ Queued';
+    btn.disabled    = true;
+    btn.style.background = '#21262d';
+    btn.style.color      = '#7ee787';
+    btn.style.cursor     = 'default';
+  }
+</script>

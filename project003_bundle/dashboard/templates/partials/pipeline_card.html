@@ -1,0 +1,76 @@
+{# partials/pipeline_card.html — single pipeline card. Expects: p (dict). #}
+<li id="pipeline-card-{{ p.id }}"
+    class="pipeline-card rounded-md border"
+    style="background: #161b22; border-color: #30363d;">
+  <div class="flex items-center gap-4 px-4 py-3">
+    <button class="text-left flex-1 group"
+            hx-get="/partials/pipelines/{{ p.id }}/panel"
+            hx-target="#panel-{{ p.id }}"
+            hx-swap="innerHTML"
+            onclick="this.closest('.pipeline-card').classList.toggle('expanded')">
+      <div class="flex items-center gap-3">
+        <span class="text-gray-400 group-hover:text-white transition">&#9656;</span>
+        <span class="text-white font-medium">{{ p.name }}</span>
+        {% if p.active %}
+          <span class="text-xs px-2 py-0.5 rounded-full"
+                style="background: rgba(63,185,80,0.15); color: #3fb950; border: 1px solid #3fb950;">active</span>
+        {% else %}
+          <span class="text-xs px-2 py-0.5 rounded-full"
+                style="background: rgba(210,153,34,0.15); color: #d29922; border: 1px solid #d29922;">paused</span>
+        {% endif %}
+      </div>
+      {% if p.description %}
+        <div class="text-xs mt-1" style="color: #8b949e;">{{ p.description }}</div>
+      {% endif %}
+    </button>
+
+    <div class="text-xs flex items-center gap-4" style="color: #8b949e;">
+      <span><span class="text-white font-medium">{{ p.channel_count }}</span> channels</span>
+      <span><span class="text-white font-medium">{{ p.destination_count }}</span> destinations</span>
+      <span><span class="text-white font-medium">{{ p.jobs_pending }}</span> pending</span>
+      <span><span class="text-white font-medium">{{ p.jobs_done_today }}</span> done today</span>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <a href="/downloads?pipeline_id={{ p.id }}"
+         class="text-xs px-2 py-1 rounded border"
+         style="border-color: #30363d; color: #58a6ff;"
+         title="View Downloads filtered to this pipeline">Downloads ↗</a>
+      {# PR6: auto-delete local files after a successful upload. #}
+      {% set _ad = p.auto_delete_after_upload %}
+      <button class="text-xs px-2 py-1 rounded border"
+              style="border-color: {% if _ad %}#3fb950{% else %}#30363d{% endif %};
+                     color: {% if _ad %}#3fb950{% else %}#8b949e{% endif %};
+                     background: {% if _ad %}rgba(63,185,80,0.10){% else %}transparent{% endif %};"
+              hx-post="/partials/pipelines/{{ p.id }}/auto_delete"
+              hx-target="#pipeline-card-{{ p.id }}"
+              hx-swap="outerHTML"
+              title="When ON: after a successful upload the local video files (mp4, thumbnail, subs, info.json) are deleted to save disk space. Only a tiny timestamp is kept in the database so the watcher won't re-download the same video. No raw files are archived.">
+        🗑 auto-delete: {{ "ON" if _ad else "OFF" }}
+      </button>
+      <button class="text-xs px-2 py-1 rounded border hover:bg-gray-700"
+              style="border-color: #30363d; color: #c9d1d9;"
+              hx-post="/partials/pipelines/{{ p.id }}/toggle"
+              hx-target="#pipeline-card-{{ p.id }}"
+              hx-swap="outerHTML">
+        {{ "Pause" if p.active else "Resume" }}
+      </button>
+      <button class="text-xs px-2 py-1 rounded border hover:bg-red-900"
+              style="border-color: #30363d; color: #f85149;"
+              hx-delete="/partials/pipelines/{{ p.id }}"
+              hx-target="#pipeline-list"
+              hx-swap="innerHTML"
+              hx-confirm="Delete pipeline '{{ p.name }}' and all its channels, destinations, and jobs?">
+        Delete
+      </button>
+    </div>
+  </div>
+
+  <div id="panel-{{ p.id }}" class="panel border-t hidden"
+       style="border-color: #30363d; background: #0d1117;"></div>
+</li>
+
+<style>
+  .pipeline-card.expanded > .panel { display: block; }
+  .pipeline-card.expanded > div > button > div > span:first-child { transform: rotate(90deg); display: inline-block; }
+</style>

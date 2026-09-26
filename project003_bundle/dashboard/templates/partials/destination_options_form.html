@@ -1,0 +1,71 @@
+{# partials/destination_options_form.html — PR7
+   Per-destination upload defaults editor.
+   Expects: d (dict) — destination row with default_* columns.
+#}
+<form class="flex flex-col gap-2 mt-2 p-2 rounded text-xs"
+      style="background:#0d1117;border:1px solid #30363d;color:#c9d1d9;"
+      hx-post="/partials/destinations/{{ d.id }}/options"
+      hx-target="#destination-list-{{ d.pipeline_id }}"
+      hx-swap="innerHTML">
+  <div class="font-semibold text-white">Upload defaults</div>
+
+  <label class="flex items-center gap-2"
+         title="When OFF, comments will be disabled on the uploaded video.
+NOTE: YouTube Data API v3 does not expose this — flag is stored and surfaced
+to n8n / a future YouTube Studio cookie integration to apply post-upload.">
+    <input type="checkbox" name="comments_enabled" value="1"
+           {% if d.default_comments_enabled %}checked{% endif %} />
+    Allow comments
+    <span class="italic" style="color:#8b949e;">(applied via n8n — not Data API)</span>
+  </label>
+
+  <label class="flex items-center gap-2"
+         title="COPPA: this video is made for kids. Disables personalized ads & comments.">
+    <input type="checkbox" name="made_for_kids" value="1"
+           {% if d.default_made_for_kids %}checked{% endif %} />
+    Made for kids (COPPA)
+  </label>
+
+  <label class="flex items-center gap-2">
+    <input type="checkbox" name="embeddable" value="1"
+           {% if d.default_embeddable %}checked{% endif %} />
+    Embeddable on other sites
+  </label>
+
+  <label class="flex items-center gap-2">
+    <input type="checkbox" name="notify_subscribers" value="1"
+           {% if d.default_notify_subscribers %}checked{% endif %} />
+    Notify subscribers on upload
+  </label>
+
+  <label class="flex flex-col gap-1">
+    <span>Default tags (comma-separated, appended to per-video tags)</span>
+    <input type="text" name="tags" value="{{ d.default_tags or '' }}"
+           placeholder="e.g. drama, korean, kdrama"
+           class="px-2 py-1 rounded"
+           style="background:#161b22;color:#e6edf3;border:1px solid #30363d;" />
+  </label>
+
+  <label class="flex flex-col gap-1"
+         title="YouTube category id. Common: 22=People&Blogs, 24=Entertainment, 10=Music, 20=Gaming, 27=Education. Leave blank to use category passed by the upload caller.">
+    <span>YouTube category id (override)</span>
+    <input type="text" name="category_id" value="{{ d.default_category_id or '' }}"
+           placeholder="(blank = caller-provided)"
+           class="px-2 py-1 rounded font-mono w-32"
+           style="background:#161b22;color:#e6edf3;border:1px solid #30363d;" />
+  </label>
+
+  <div class="flex gap-2 justify-end">
+    <button type="button"
+            class="px-3 py-1 rounded border"
+            style="border-color:#30363d;color:#c9d1d9;"
+            onclick="document.getElementById('dest-opts-{{ d.id }}').innerHTML=''">
+      Cancel
+    </button>
+    <button type="submit"
+            class="px-3 py-1 rounded font-medium"
+            style="background:#238636;color:white;">
+      Save
+    </button>
+  </div>
+</form>

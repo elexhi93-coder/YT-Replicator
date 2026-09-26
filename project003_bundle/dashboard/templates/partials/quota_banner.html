@@ -1,0 +1,41 @@
+<div class="mb-4 p-3 rounded-lg border"
+     style="background:#3d2914;border-color:#7d4f1a;color:#f0a020">
+  <div class="flex items-center justify-between gap-3">
+    <div class="flex items-start gap-3">
+      <span style="font-size:18px;line-height:1">⚠</span>
+      <div class="text-sm">
+        <div class="font-bold" style="color:#ffb454">YouTube daily upload quota reached</div>
+        <div style="opacity:.85" class="mt-1">
+          {% if recent_quota_failures %}
+            <span>{{ recent_quota_failures }} upload(s) failed with <code style="font-size:11px">uploadLimitExceeded</code> in the last hour.</span>
+          {% endif %}
+          {% if deferred_total %}
+            <span>{{ deferred_total }} upload(s) deferred, waiting for retry.</span>
+          {% endif %}
+          {% if rows %}
+            <ul class="mt-1 ml-4 list-disc">
+              {% for r in rows %}
+                <li>
+                  <b>{{ r.destination_name }}</b> ({{ r.platform }})
+                  {% if r.quota_resets_at %}— resets at {{ r.quota_resets_at }}{% endif %}
+                </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+          <div class="mt-1" style="opacity:.7">
+            YouTube's per-channel daily upload window is rolling 24h from your
+            most recent successful upload. The quota-retry worker will
+            automatically re-queue deferred uploads.
+          </div>
+        </div>
+      </div>
+    </div>
+    <button class="px-3 py-1.5 text-xs rounded font-medium shrink-0"
+            style="background:#7d4f1a;color:#ffb454"
+            hx-post="/api/quota/retry"
+            hx-swap="none"
+            title="Force the retry sweep now (safe to click; it just re-queues deferred uploads)">
+      Retry now
+    </button>
+  </div>
+</div>

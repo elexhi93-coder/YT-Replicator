@@ -1,0 +1,5 @@
+{
+  "global_webhook_url": "http://n8n:5678/webhook/idm-yt-download",
+  "enabled": true,
+  "channels": {}
+}

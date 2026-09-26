@@ -1,0 +1,21 @@
+{# partials/download_profile_select.html — dropdown to assign a download profile to a pipeline.
+   Expects: pid, current_id (int|None), profiles (list of {id, name, is_default}). #}
+<form hx-post="/partials/pipelines/{{ pid }}/download_profile"
+      hx-target="this"
+      hx-swap="outerHTML"
+      class="flex items-center gap-2">
+  <select name="download_profile_id"
+          class="bg-gray-800 text-white text-xs border border-gray-700 rounded px-2 py-1 flex-1">
+    <option value="">— Use default —</option>
+    {% for prof in profiles %}
+      <option value="{{ prof.id }}"
+              {% if current_id == prof.id %}selected{% endif %}>
+        {{ prof.name }}{% if prof.is_default %} (default){% endif %}
+      </option>
+    {% endfor %}
+  </select>
+  <button type="submit"
+          class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded">
+    Save
+  </button>
+</form>

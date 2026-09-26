@@ -1,0 +1,145 @@
+{# partials/profile_form.html — used for both create + edit.
+   `profile` is None for create, a dict for edit. #}
+{% set p = profile or {} %}
+{% set is_edit = p.get('id') is not none %}
+{% set post_url = ('/partials/profiles/' ~ p.id) if is_edit else '/partials/profiles' %}
+<form hx-post="{{ post_url }}"
+      hx-target="#profiles-panel"
+      hx-swap="innerHTML"
+      hx-on::after-request="if(event.detail.successful){document.getElementById('profile-form-slot').innerHTML='';window.showToast('{{ 'Profile updated' if is_edit else 'Profile created' }}','success');}"
+      class="p-4 rounded-lg"
+      style="background: var(--surface); border: 1px solid var(--border);">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-lg font-semibold text-white">
+      {{ 'Edit Profile' if is_edit else 'New Profile' }}
+    </h2>
+    <button type="button"
+            onclick="document.getElementById('profile-form-slot').innerHTML='';"
+            class="text-xs px-2 py-1 rounded"
+            style="color: var(--text-muted); border: 1px solid var(--border);">Cancel</button>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    {# --- Identity --- #}
+    <div class="md:col-span-2">
+      <label class="block text-xs mb-1" style="color: var(--text-muted);">Name *</label>
+      <input type="text" name="name" required value="{{ p.get('name','') }}"
+             class="w-full px-2 py-1.5 text-sm rounded"
+             style="background: #0d1117; color: var(--text); border: 1px solid var(--border);">
+    </div>
+    <div class="md:col-span-2">
+      <label class="block text-xs mb-1" style="color: var(--text-muted);">Description</label>
+      <input type="text" name="description" value="{{ p.get('description','') }}"
+             class="w-full px-2 py-1.5 text-sm rounded"
+             style="background: #0d1117; color: var(--text); border: 1px solid var(--border);">
+    </div>
+
+    {# --- Video --- #}
+    <div>
+      <label class="block text-xs mb-1" style="color: var(--text-muted);">Max Height (0 = no cap)</label>
+      <select name="max_height"
+              class="w-full px-2 py-1.5 text-sm rounded"
+              style="background: #0d1117; color: var(--text); border: 1px solid var(--border);">
+        {% set mh = p.get('max_height', 1080) %}
+        {% for v, lbl in [(0,'Best available'),(2160,'2160p (4K)'),(1440,'1440p (2K)'),(1080,'1080p'),(720,'720p'),(480,'480p'),(360,'360p')] %}
+          <option value="{{ v }}" {% if mh == v %}selected{% endif %}>{{ lbl }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs mb-1" style="color: var(--text-muted);">Container</label>
+      <select name="container"
+              class="w-full px-2 py-1.5 text-sm rounded"
+              style="background: #0d1117; color: var(--text); border: 1px solid var(--border);">
+        {% set c = p.get('container','mp4') %}
+        {% for v in ['mp4','webm','mkv','best'] %}
+          <option value="{{ v }}" {% if c == v %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs mb-1" style="color: var(--text-muted);">Video Codec</label>
+      <select name="video_codec"
+              class="w-full px-2 py-1.5 text-sm rounded"
+              style="background: #0d1117; color: var(--text); border: 1px solid var(--border);">
+        {% set vc = p.get('video_codec','avc1') %}
+        {% for v, lbl in [('avc1','avc1 (H.264)'),('vp9','vp9'),('av01','av01 (AV1)'),('any','any')] %}
+          <option value="{{ v }}" {% if vc == v %}selected{% endif %}>{{ lbl }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs mb-1" style="color: var(--text-muted);">Audio Codec</label>
+      <select name="audio_codec"
+              class="w-full px-2 py-1.5 text-sm rounded"
+              style="background: #0d1117; color: var(--text); border: 1px solid var(--border);">
+        {% set ac = p.get('audio_codec','m4a') %}
+        {% for v in ['m4a','opus','mp3','any'] %}
+          <option value="{{ v }}" {% if ac == v %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {# --- Toggles: subs / thumbs / chapters --- #}
+    <div class="md:col-span-2 grid grid-cols-2 md:grid-cols-3 gap-2 p-3 rounded"
+         style="background: var(--surface-2); border: 1px solid var(--border);">
+      {% macro chk(field, label) -%}
+        <label class="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" name="{{ field }}" value="1"
+                 {% if p.get(field) %}checked{% endif %}>
+          <span>{{ label }}</span>
+        </label>
+      {%- endmacro %}
+      {{ chk('audio_only',      'Audio only') }}
+      {{ chk('write_subs',      'Subtitles') }}
+      {{ chk('write_auto_subs', 'Auto-subs') }}
+      {{ chk('embed_subs',      'Embed subs') }}
+      {{ chk('write_thumbnail', 'Thumbnail') }}
+      {{ chk('embed_thumbnail', 'Embed thumb') }}
+      {{ chk('embed_chapters',  'Embed chapters') }}
+      {{ chk('skip_live',       'Skip live/premiere') }}
+      {{ chk('skip_shorts',     'Skip shorts') }}
+    </div>
+
+    <div>
+      <label class="block text-xs mb-1" style="color: var(--text-muted);">Subtitle languages (comma)</label>
+      <input type="text" name="sub_langs" value="{{ p.get('sub_langs','en') }}"
+             placeholder="en,es,fr"
+             class="w-full px-2 py-1.5 text-sm rounded font-mono"
+             style="background: #0d1117; color: var(--text); border: 1px solid var(--border);">
+    </div>
+    <div>
+      <label class="block text-xs mb-1" style="color: var(--text-muted);">Shorts threshold (seconds)</label>
+      <input type="number" name="shorts_max_seconds" min="1" max="600"
+             value="{{ p.get('shorts_max_seconds', 60) }}"
+             class="w-full px-2 py-1.5 text-sm rounded"
+             style="background: #0d1117; color: var(--text); border: 1px solid var(--border);">
+    </div>
+
+    {# --- Escape hatches --- #}
+    <div class="md:col-span-2">
+      <label class="block text-xs mb-1" style="color: var(--text-muted);">
+        Custom format string (overrides everything if set)
+      </label>
+      <input type="text" name="custom_format" value="{{ p.get('custom_format','') }}"
+             placeholder="bestvideo[height<=1080]+bestaudio/best"
+             class="w-full px-2 py-1.5 text-sm rounded font-mono"
+             style="background: #0d1117; color: var(--text); border: 1px solid var(--border);">
+    </div>
+    <div class="md:col-span-2">
+      <label class="flex items-center gap-2 text-sm cursor-pointer">
+        <input type="checkbox" name="is_default" value="1"
+               {% if p.get('is_default') %}checked{% endif %}>
+        <span>Use as default for new pipelines</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="flex items-center justify-end gap-2 mt-5">
+    <button type="submit"
+            class="px-4 py-1.5 text-sm rounded font-medium"
+            style="background: #238636; color: white;">
+      {{ 'Save Changes' if is_edit else 'Create Profile' }}
+    </button>
+  </div>
+</form>

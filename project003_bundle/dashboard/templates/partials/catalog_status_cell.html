@@ -1,0 +1,30 @@
+{# partials/catalog_status_cell.html — inner contents of the per-row status <td>.
+   Expects: video_id, upload_status, pending_ledger_id, pending_created_at, undo_window #}
+{% if pending_ledger_id %}
+  <span class="catalog-undo-badge text-xs px-1.5 py-0.5 rounded inline-flex items-center gap-1"
+        style="background: #3a2d1d; color: #d29922; border: 1px solid #5a4517;"
+        data-ledger-id="{{ pending_ledger_id }}"
+        data-created-at="{{ pending_created_at }}"
+        data-window="{{ undo_window }}">
+    <span class="catalog-undo-label">queued</span>
+    <button type="button"
+            class="ml-1 px-1 rounded text-xs"
+            style="background: #5a4517; color: #ffd591; border: 0;"
+            hx-post="/partials/catalog/cancel/{{ pending_ledger_id }}"
+            hx-target="closest td" hx-swap="innerHTML"
+            title="Cancel before the worker claims it">
+      Undo <span class="catalog-undo-secs">{{ undo_window }}</span>s
+    </button>
+  </span>
+{% elif upload_status == 'uploaded' %}
+  <span class="text-xs px-1.5 py-0.5 rounded"
+        style="background: #0f2419; color: #3fb950;">✓ uploaded</span>
+{% elif upload_status == 'failed' %}
+  <span class="text-xs px-1.5 py-0.5 rounded"
+        style="background: #3a1d1d; color: #f85149;">✗ failed</span>
+{% elif upload_status in ('queued','uploading') %}
+  <span class="text-xs px-1.5 py-0.5 rounded"
+        style="background: #1f2933; color: #58a6ff;">{{ upload_status }}</span>
+{% else %}
+  <span class="text-xs" style="color: var(--text-muted);">— never</span>
+{% endif %}

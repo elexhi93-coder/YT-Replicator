@@ -1,0 +1,24 @@
+{# partials/new_pipeline_form.html — inline create form #}
+<form hx-post="/partials/pipelines"
+      hx-target="#pipeline-list"
+      hx-swap="innerHTML"
+      hx-on::after-request="if(event.detail.successful) document.getElementById('new-pipeline-form').innerHTML = ''"
+      class="flex flex-col gap-2 p-4 rounded-md border"
+      style="background: #161b22; border-color: #30363d;">
+  <div class="text-sm font-semibold text-white">New pipeline</div>
+  <input name="name" required placeholder="Pipeline name"
+         class="px-2 py-1 text-sm rounded"
+         style="background: #0d1117; color: #e6edf3; border: 1px solid #30363d;" />
+  <input name="description" placeholder="Description (optional)"
+         class="px-2 py-1 text-sm rounded"
+         style="background: #0d1117; color: #e6edf3; border: 1px solid #30363d;" />
+  <div class="flex gap-2 justify-end">
+    <button type="button"
+            onclick="document.getElementById('new-pipeline-form').innerHTML = ''"
+            class="px-3 py-1 text-sm rounded border"
+            style="border-color: #30363d; color: #c9d1d9;">Cancel</button>
+    <button type="submit"
+            class="px-3 py-1 text-sm rounded font-medium"
+            style="background: #238636; color: white;">Create</button>
+  </div>
+</form>

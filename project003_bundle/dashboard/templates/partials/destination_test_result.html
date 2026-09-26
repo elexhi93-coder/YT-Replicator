@@ -1,0 +1,29 @@
+{# 4-light strip rendered after a Test click on a destination row.
+   Returned by POST /api/destinations/<did>/test when HX-Request is set.
+   Inputs: did, result (dict with webhook/workflow/channel/scheduler),
+           all_ok (bool). #}
+{% macro light(name, label, info) -%}
+  {%- set applicable = info.get('applicable', True) -%}
+  {%- if not applicable -%}
+    {%- set bg = '#30363d' -%}{%- set fg = '#8b949e' -%}{%- set sym = '·' -%}
+  {%- elif info.ok -%}
+    {%- set bg = '#1a3d1a' -%}{%- set fg = '#3fb950' -%}{%- set sym = '✓' -%}
+  {%- else -%}
+    {%- set bg = '#3d1a1a' -%}{%- set fg = '#f85149' -%}{%- set sym = '✗' -%}
+  {%- endif -%}
+  <span title="{{ info.detail }}"
+        class="px-2 py-0.5 text-xs rounded font-mono"
+        style="background: {{ bg }}; color: {{ fg }}; border: 1px solid #30363d;">
+    {{ sym }} {{ label }}
+  </span>
+{%- endmacro %}
+
+<div class="flex flex-wrap items-center gap-1 mt-1 text-xs"
+     style="color: #8b949e;"
+     title="{% if all_ok %}all good{% else %}see hover details{% endif %}">
+  {{ light('webhook',   'webhook',   result.webhook)   }}
+  {{ light('workflow',  'workflow',  result.workflow)  }}
+  {{ light('channel',   'channel',   result.channel)   }}
+  {{ light('scheduler', 'scheduler', result.scheduler) }}
+  <span class="ml-1 italic">({{ 'ok' if all_ok else 'issues — hover lights' }})</span>
+</div>

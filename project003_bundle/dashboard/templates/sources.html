@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Sources — project003{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold text-white">Sources</h1>
+  <span class="text-xs" style="color: var(--text-muted);">
+    Channels &amp; playlists you curate manually. The cron pipeline is separate.
+  </span>
+</div>
+
+{# Add-source form #}
+<section class="mb-6 p-4 rounded-lg"
+         style="background: var(--surface); border: 1px solid var(--border);">
+  <form hx-post="/partials/sources"
+        hx-target="#sources-panel"
+        hx-swap="innerHTML"
+        hx-on::after-request="if(event.detail.successful) this.reset()"
+        class="flex flex-wrap items-end gap-2">
+    <div class="flex flex-col flex-1 min-w-[20rem]">
+      <label class="text-xs mb-1" style="color: var(--text-muted);">YouTube channel or playlist URL</label>
+      <input type="url" name="url" required placeholder="https://www.youtube.com/@channelname"
+             class="px-2 py-1.5 text-sm rounded font-mono"
+             style="background: #0d1117; color: var(--text); border: 1px solid var(--border);">
+    </div>
+    <div class="flex flex-col">
+      <label class="text-xs mb-1" style="color: var(--text-muted);">Display name (optional)</label>
+      <input type="text" name="name" placeholder="auto-detected on first scan"
+             class="px-2 py-1.5 text-sm rounded"
+             style="background: #0d1117; color: var(--text); border: 1px solid var(--border); width: 18rem;">
+    </div>
+    <div class="flex flex-col">
+      <label class="text-xs mb-1" style="color: var(--text-muted);">Pipeline</label>
+      <select name="pipeline_id"
+              class="px-2 py-1.5 text-sm rounded"
+              style="background: #0d1117; color: var(--text); border: 1px solid var(--border); width: 16rem;">
+        <option value="">none (download-only source)</option>
+        {% for p in pipelines %}
+          <option value="{{ p.id }}">{{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit"
+            class="px-4 py-1.5 text-sm rounded font-medium"
+            style="background: #238636; color: white;">+ Add Source</button>
+  </form>
+  <p class="text-xs mt-2" style="color: var(--text-muted);">
+    Attach a pipeline when this source should expose upload destinations in its catalog.
+  </p>
+</section>
+
+<div id="sources-panel"
+     hx-get="/partials/sources"
+     hx-trigger="load"
+     hx-swap="innerHTML">
+  <div class="text-sm italic" style="color: var(--text-muted);">Loading sources…</div>
+</div>
+{% endblock %}

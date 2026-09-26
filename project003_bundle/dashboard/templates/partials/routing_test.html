@@ -1,0 +1,76 @@
+{# Per-destination rule test result. Rendered into #rule-test-slot. #}
+<div class="rounded p-3 mb-4"
+     style="background: var(--surface-2); border: 1px solid var(--border);">
+  <div class="flex items-center justify-between mb-2">
+    <div class="text-xs font-semibold uppercase tracking-wide" style="color: var(--text-muted);">
+      Test result &mdash; {{ destination.label or ('dest #' ~ destination.id) }}
+    </div>
+    <button onclick="document.getElementById('rule-test-slot').innerHTML=''"
+            class="text-xs px-2 py-0.5 rounded"
+            style="background: var(--surface); color: var(--text-muted); border: 1px solid var(--border);">
+      ✕
+    </button>
+  </div>
+
+  {% if error %}
+    <div class="text-sm py-2" style="color: var(--danger);">{{ error }}</div>
+  {% else %}
+    <div class="mb-2 text-sm" style="color: var(--text);">
+      <span class="font-mono text-xs" style="color: var(--text-muted);">{{ video.video_id }}</span>
+      &mdash;
+      <span>{{ video.title or '(no title)' }}</span>
+    </div>
+    <div class="mb-3 text-xs" style="color: var(--text-muted);">
+      duration={{ video.duration_sec or 0 }}s,
+      live_status={{ video.live_status or 'not_live' }}
+      {% if ledger %}
+        &middot; <span style="color: var(--accent);">ledger: {{ ledger.status }}
+          ({{ ledger.triggered_by }})</span>
+      {% else %}
+        &middot; <span>not in ledger</span>
+      {% endif %}
+    </div>
+
+    {% if matches %}
+      <div class="text-xs font-semibold uppercase tracking-wide mb-1" style="color: var(--success);">
+        ✓ Matches ({{ matches|length }})
+      </div>
+      <ul class="text-sm mb-3 space-y-1">
+        {% for m in matches %}
+          <li style="color: var(--text);">
+            rule #{{ m.rule_id }}
+            <span style="color: var(--text-muted);">— {{ m.rule_label or '(no label)' }}</span>
+            {% if m.profile_id %}<span class="ml-1 text-xs" style="color: var(--text-muted);">profile={{ m.profile_id }}</span>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="text-sm mb-3" style="color: var(--text-muted);">
+        <span style="color: var(--danger);">✗ No matches</span> for this destination.
+      </div>
+    {% endif %}
+
+    {% if rejects %}
+      <div class="text-xs font-semibold uppercase tracking-wide mb-1" style="color: var(--text-muted);">
+        Rejected by ({{ rejects|length }})
+      </div>
+      <ul class="text-xs space-y-1">
+        {% for r in rejects %}
+          <li style="color: var(--text-muted);">
+            rule #{{ r.rule_id }}
+            <span>— {{ r.rule_label or '(no label)' }}</span>
+            <span class="ml-1" style="color: var(--danger);">→ {{ r.reason }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    {% set other = all_matches | selectattr('destination_id', 'ne', destination.id) | list %}
+    {% if other %}
+      <div class="text-xs mt-3 pt-2" style="color: var(--text-muted); border-top: 1px solid var(--border);">
+        Also matches {{ other|length }} other destination(s):
+        {% for m in other %}#{{ m.destination_id }}{% if not loop.last %}, {% endif %}{% endfor %}
+      </div>
+    {% endif %}
+  {% endif %}
+</div>

@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}project003{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.10/dist/ext/json-enc.js"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface-2: #1c222b;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --success: #3fb950;
+      --warning: #d29922;
+      --danger: #f85149;
+    }
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    }
+    .nav-link {
+      color: #c9d1d9;
+      padding: 0.5rem 0.25rem;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s ease, border-color 0.15s ease;
+    }
+    .nav-link:hover { color: #ffffff; }
+    .nav-link.active {
+      color: #ffffff;
+      border-bottom-color: var(--accent);
+    }
+    .toast {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      min-width: 240px;
+      animation: toast-in 0.2s ease-out;
+    }
+    .toast.success { border-left: 3px solid var(--success); }
+    .toast.error   { border-left: 3px solid var(--danger); }
+    .toast.info    { border-left: 3px solid var(--accent); }
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes stage-pulse {
+      0%, 100% { opacity: 1; }
+      50%      { opacity: 0.55; }
+    }
+    .stage-anim { animation: stage-pulse 1.4s ease-in-out infinite; }
+    /* Scrollbars */
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 5px; }
+    ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+  </style>
+  {% block head_extra %}{% endblock %}
+</head>
+<body style="background: #0d1117;">
+  <nav class="fixed top-0 left-0 right-0 z-40 border-b"
+       style="background: #161b22; border-color: #30363d;">
+    <div class="max-w-7xl mx-auto px-6 py-3 flex items-center gap-8">
+      <a href="/" class="text-white font-bold text-lg tracking-tight">project003</a>
+      <div class="flex items-center gap-6 text-sm font-medium">
+        {% set path = request.path %}
+        <a href="/pipelines" class="nav-link {% if path.startswith('/pipelines') %}active{% endif %}">Pipelines</a>
+        <a href="/sources"   class="nav-link {% if path.startswith('/sources')   %}active{% endif %}">Sources</a>
+        <a href="/profiles"  class="nav-link {% if path.startswith('/profiles')  %}active{% endif %}">Profiles</a>
+        <a href="/routing"   class="nav-link {% if path.startswith('/routing')   %}active{% endif %}">Routing</a>
+        <a href="/downloads" class="nav-link {% if path.startswith('/downloads') %}active{% endif %}">Downloads</a>
+        <a href="/uploads"   class="nav-link {% if path.startswith('/uploads')   %}active{% endif %}">Uploads</a>
+        <a href="/projects"  class="nav-link {% if path.startswith('/projects')  %}active{% endif %}">Projects</a>
+        <a href="/queue"     class="nav-link {% if path.startswith('/queue')     %}active{% endif %}">Queue</a>
+        <a href="/history"   class="nav-link {% if path.startswith('/history')   %}active{% endif %}">History</a>
+        <a href="/logs"      class="nav-link {% if path.startswith('/logs')      %}active{% endif %}">Logs</a>
+        <a href="/admin"     class="nav-link {% if path.startswith('/admin')     %}active{% endif %}" style="color:#f85149;">Admin</a>
+      </div>
+      <div class="ml-auto flex items-center gap-3 text-xs" style="color: var(--text-muted);">
+        <div hx-get="/partials/worker-status"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+          <span class="inline-block w-2 h-2 rounded-full mr-1" style="background: #8b949e;"></span>
+          loading…
+        </div>
+        <div>
+          <span id="conn-indicator" class="inline-block w-2 h-2 rounded-full mr-1" style="background: #3fb950;"></span>
+          connected
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="pt-20 px-6 pb-12 max-w-7xl mx-auto">
+    {% block content %}{% endblock %}
+  </main>
+
+  <div id="toast-container" class="fixed bottom-4 right-4 flex flex-col gap-2 z-50"></div>
+
+  <script>
+    // Toast helper used by HTMX responses and inline scripts.
+    window.showToast = function(message, type) {
+      type = type || "info";
+      var el = document.createElement("div");
+      el.className = "toast " + type;
+      el.textContent = message;
+      var c = document.getElementById("toast-container");
+      c.appendChild(el);
+      setTimeout(function() {
+        el.style.transition = "opacity 0.3s ease";
+        el.style.opacity = "0";
+        setTimeout(function() { el.remove(); }, 300);
+      }, 3500);
+    };
+
+    // Surface HTMX errors as toast notifications.
+    document.body.addEventListener("htmx:responseError", function(evt) {
+      var status = evt.detail.xhr.status;
+      var msg = "Request failed (" + status + ")";
+      try {
+        var body = JSON.parse(evt.detail.xhr.responseText);
+        if (body && body.error && body.error.message) {
+          msg = body.error.message;
+        }
+      } catch (e) { /* non-JSON body */ }
+      // Suppress noisy toasts for background polling failures — the
+      // connection-indicator below already shows "reconnecting…" and
+      // the backoff system handles retry. Only surface errors for
+      // user-initiated actions.
+      var t = evt.detail.elt;
+      var isPolled = t && t.getAttribute && /\b(every|load)\b/.test(t.getAttribute("hx-trigger") || "");
+      if (!isPolled) window.showToast(msg, "error");
+    });
+
+    // ── Polling backoff & connection indicator ────────────────────────
+    // For elements polled via `hx-trigger="every Ns"`, track consecutive
+    // failures (5xx, network) and skip the next N requests so we don't
+    // hammer a downed server (or fill the console with hundreds of
+    // ERR_CONNECTION_REFUSED lines while containers restart).
+    (function() {
+      var failState = new WeakMap();   // el -> {fails, nextAllowedAt}
+      var indicator = document.getElementById("conn-indicator");
+
+      function setConnState(state) {
+        if (!indicator) return;
+        if (state === "ok") {
+          indicator.style.background = "#3fb950";
+          indicator.title = "connected";
+        } else if (state === "retrying") {
+          indicator.style.background = "#d29922";
+          indicator.title = "reconnecting with backoff…";
+        } else {
+          indicator.style.background = "#f85149";
+          indicator.title = "disconnected";
+        }
+      }
+
+      function isPolled(el) {
+        if (!el || !el.getAttribute) return false;
+        var trig = el.getAttribute("hx-trigger") || "";
+        return /\bevery\s+\d/.test(trig);
+      }
+
+      function recordFail(el) {
+        var s = failState.get(el) || { fails: 0, nextAllowedAt: 0 };
+        s.fails += 1;
+        // Backoff: 0, 5s, 15s, 30s, 60s, 120s (capped)
+        var delays = [0, 5, 15, 30, 60, 120];
+        var idx = Math.min(s.fails, delays.length - 1);
+        s.nextAllowedAt = Date.now() + delays[idx] * 1000;
+        failState.set(el, s);
+        if (s.fails >= 2) setConnState("retrying");
+      }
+
+      function recordSuccess(el) {
+        var s = failState.get(el);
+        if (s && s.fails > 0) {
+          failState.delete(el);
+        }
+        // Reset indicator only when no element is currently in failure mode.
+        // Cheap heuristic: any successful poll → green.
+        setConnState("ok");
+      }
+
+      document.body.addEventListener("htmx:beforeRequest", function(evt) {
+        var el = evt.detail.elt;
+        if (!isPolled(el)) return;
+        var s = failState.get(el);
+        if (s && Date.now() < s.nextAllowedAt) {
+          evt.preventDefault();   // skip this poll tick
+        }
+      });
+
+      document.body.addEventListener("htmx:afterRequest", function(evt) {
+        var el = evt.detail.elt;
+        if (!isPolled(el)) return;
+        var xhr = evt.detail.xhr;
+        if (xhr && xhr.status >= 200 && xhr.status < 400) {
+          recordSuccess(el);
+        }
+      });
+
+      document.body.addEventListener("htmx:responseError", function(evt) {
+        if (isPolled(evt.detail.elt)) recordFail(evt.detail.elt);
+      });
+      document.body.addEventListener("htmx:sendError", function(evt) {
+        if (isPolled(evt.detail.elt)) recordFail(evt.detail.elt);
+      });
+      document.body.addEventListener("htmx:timeout", function(evt) {
+        if (isPolled(evt.detail.elt)) recordFail(evt.detail.elt);
+      });
+    })();
+  </script>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

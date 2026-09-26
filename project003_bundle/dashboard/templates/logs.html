@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block title %}Logs — project003{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto">
+
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-2xl font-semibold" style="color: var(--text);">Logs</h1>
+    <div class="flex items-center gap-3 text-xs" style="color: var(--text-dim);">
+      <span id="log-status" class="inline-flex items-center gap-1.5">
+        <span id="log-status-dot" class="inline-block w-2 h-2 rounded-full"
+              style="background: var(--success);"></span>
+        <span id="log-status-text">Auto-refresh 3s</span>
+      </span>
+      <span id="log-meta" class="font-mono"></span>
+    </div>
+  </div>
+
+  <div id="log-tabs" class="flex flex-wrap items-end gap-1 mb-3 border-b"
+       style="border-color: var(--border);">
+    {% for key, label in [('watcher','Watcher'), ('processor','Processor'),
+                          ('n8n','n8n'), ('dashboard','Dashboard')] %}
+    <button type="button" data-container="{{ key }}"
+            class="log-tab px-4 py-2 text-sm font-medium border-b-2 transition-colors{% if loop.first %} active{% endif %}"
+            onclick="selectLogTab('{{ key }}')">{{ label }}</button>
+    {% endfor %}
+
+    <div class="ml-auto flex items-center gap-2 pb-2 flex-wrap">
+      <input id="log-filter" type="search" placeholder="filter (substring)…"
+             class="px-2 py-1 text-xs rounded border font-mono"
+             style="background: var(--surface); border-color: var(--border);
+                    color: var(--text); width: 200px;"
+             oninput="applyFilter()">
+      <select id="log-tail" onchange="fetchLogs(true)"
+              class="px-2 py-1 text-xs rounded border"
+              style="background: var(--surface); border-color: var(--border);
+                     color: var(--text);">
+        <option value="100">100 lines</option>
+        <option value="200" selected>200 lines</option>
+        <option value="500">500 lines</option>
+      </select>
+      <label class="inline-flex items-center gap-1 text-xs" style="color: var(--text-dim);">
+        <input id="log-follow" type="checkbox" checked> follow
+      </label>
+      <label class="inline-flex items-center gap-1 text-xs" style="color: var(--text-dim);">
+        <input id="log-wrap" type="checkbox" checked onchange="applyWrap()"> wrap
+      </label>
+      <button type="button" onclick="togglePause()" id="log-pause"
+              class="px-3 py-1.5 text-xs rounded border"
+              style="background: var(--surface); border-color: var(--border); color: var(--text);">
+        ⏸ Pause
+      </button>
+      <button type="button" onclick="clearLogView()"
+              class="px-3 py-1.5 text-xs rounded border"
+              style="background: var(--surface); border-color: var(--border); color: var(--text);">
+        Clear
+      </button>
+      <a id="log-download" href="/api/logs?container=watcher&download=1"
+         class="px-3 py-1.5 text-xs rounded border"
+         style="background: var(--surface); border-color: var(--border); color: var(--accent);">
+        Download
+      </a>
+    </div>
+  </div>
+
+  <div id="log-output"
+       class="bg-black font-mono text-xs rounded border overflow-auto p-3"
+       style="border-color: var(--border); height: 70vh; white-space: pre-wrap;
+              word-break: break-word;">
+    <div class="text-gray-500 italic">Loading logs…</div>
+  </div>
+
+</div>
+
+<style>
+  .log-tab { color: var(--text-dim); border-color: transparent; }
+  .log-tab:hover { color: var(--text); }
+  .log-tab.active { color: var(--accent); border-color: var(--accent); }
+  #log-output.no-wrap { white-space: pre; word-break: normal; }
+  #log-output > div.hidden-by-filter { display: none; }
+</style>
+
+<script>
+(function () {
+  var state = {
+    container: 'watcher',
+    inFlight: false,
+    paused: false,
+    pollMs: 3000,
+    timer: null,
+    lastFetchAt: 0,
+  };
+
+  function $(id) { return document.getElementById(id); }
+
+  function setStatus(text, color) {
+    $('log-status-text').textContent = text;
+    $('log-status-dot').style.background = color;
+  }
+
+  function fmtTime(ts) {
+    var d = new Date(ts);
+    return d.toTimeString().slice(0, 8);
+  }
+
+  function updateMeta(visibleCount, totalCount) {
+    var bits = [];
+    if (totalCount != null) {
+      if (visibleCount !== totalCount) {
+        bits.push(visibleCount + '/' + totalCount + ' lines');
+      } else {
+        bits.push(totalCount + ' lines');
+      }
+    }
+    if (state.lastFetchAt) bits.push('updated ' + fmtTime(state.lastFetchAt));
+    $('log-meta').textContent = bits.join(' · ');
+  }
+
+  function fetchLogs(force) {
+    if (state.paused && !force) return;
+    if (state.inFlight) return;
+    state.inFlight = true;
+    var name = state.container;
+    var tail = $('log-tail').value || '200';
+    var url = '/partials/logs?container=' + encodeURIComponent(name) +
+              '&tail=' + encodeURIComponent(tail);
+    fetch(url, { credentials: 'same-origin' })
+      .then(function (r) { return r.text(); })
+      .then(function (html) {
+        if (name !== state.container) return; // stale response
+        var out = $('log-output');
+        out.innerHTML = html;
+        state.lastFetchAt = Date.now();
+        applyFilter();
+        if ($('log-follow').checked) out.scrollTop = out.scrollHeight;
+        setStatus(state.paused ? 'Paused' : 'Auto-refresh 3s',
+                  state.paused ? '#d29922' : 'var(--success)');
+      })
+      .catch(function (e) {
+        $('log-output').innerHTML =
+          '<div style="color:#f85149">Failed to load logs: ' + e + '</div>';
+        setStatus('Error', '#f85149');
+      })
+      .finally(function () { state.inFlight = false; });
+  }
+
+  function applyFilter() {
+    var q = ($('log-filter').value || '').toLowerCase();
+    var rows = $('log-output').querySelectorAll('div');
+    var visible = 0;
+    rows.forEach(function (r) {
+      if (!q || r.textContent.toLowerCase().indexOf(q) !== -1) {
+        r.classList.remove('hidden-by-filter');
+        visible++;
+      } else {
+        r.classList.add('hidden-by-filter');
+      }
+    });
+    updateMeta(visible, rows.length);
+  }
+
+  function applyWrap() {
+    $('log-output').classList.toggle('no-wrap', !$('log-wrap').checked);
+  }
+
+  window.selectLogTab = function (name) {
+    state.container = name;
+    document.querySelectorAll('.log-tab').forEach(function (el) {
+      el.classList.toggle('active', el.dataset.container === name);
+    });
+    $('log-download').setAttribute(
+      'href',
+      '/api/logs?container=' + encodeURIComponent(name) + '&download=1'
+    );
+    $('log-output').innerHTML =
+      '<div class="text-gray-500 italic">Loading ' + name + ' logs…</div>';
+    fetchLogs(true);
+  };
+
+  window.clearLogView = function () {
+    $('log-output').innerHTML =
+      '<div class="text-gray-500 italic">Cleared (next refresh in &le; 3s).</div>';
+    updateMeta(0, 0);
+  };
+
+  window.togglePause = function () {
+    state.paused = !state.paused;
+    $('log-pause').textContent = state.paused ? '▶ Resume' : '⏸ Pause';
+    setStatus(state.paused ? 'Paused' : 'Auto-refresh 3s',
+              state.paused ? '#d29922' : 'var(--success)');
+    if (!state.paused) fetchLogs(true);
+  };
+
+  window.applyFilter = applyFilter;
+  window.applyWrap = applyWrap;
+  window.fetchLogs = fetchLogs;
+
+  document.addEventListener('DOMContentLoaded', function () {
+    fetchLogs(true);
+    state.timer = setInterval(fetchLogs, state.pollMs);
+  });
+
+  // Pause polling when tab is hidden to save resources.
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      if (state.timer) { clearInterval(state.timer); state.timer = null; }
+    } else if (!state.timer) {
+      fetchLogs(true);
+      state.timer = setInterval(fetchLogs, state.pollMs);
+    }
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,134 @@
+{# partials/source_list.html — sources list. Expects: sources, optional error #}
+{% if error %}
+<div class="mb-3 px-3 py-2 rounded text-sm"
+     style="background: #3a1d1d; color: #f0a3a3; border: 1px solid #f85149;">
+  {{ error }}
+</div>
+{% endif %}
+
+{% set any_scanning = sources | selectattr('scan_in_progress') | list | length %}
+
+{% if not sources %}
+<div class="p-6 text-center text-sm italic rounded"
+     style="background: var(--surface); color: var(--text-muted); border: 1px dashed var(--border);">
+  No sources yet. Paste a YouTube channel or playlist URL above to start.
+</div>
+{% else %}
+<div id="sources-list-wrapper"
+     {% if any_scanning %}hx-get="/partials/sources"
+     hx-trigger="every 3s"
+     hx-target="#sources-list-wrapper"
+     hx-swap="outerHTML"{% endif %}>
+<ul class="flex flex-col gap-2">
+  {% for s in sources %}
+    <li class="flex items-center gap-3 px-3 py-2.5 rounded"
+        style="background: var(--surface); border: 1px solid var(--border);">
+      <span class="text-xs px-1.5 py-0.5 rounded font-mono"
+            style="background: #21262d; color: #58a6ff;">{{ s.kind }}</span>
+      <a href="/sources/{{ s.id }}"
+         class="text-white font-medium flex-1 truncate hover:underline"
+         title="{{ s.url }}">{{ s.name }}</a>
+      <span class="text-xs"
+            style="color: var(--text-muted);"
+            title="catalog rows / uploaded">
+        {{ s.uploaded_count }} / {{ s.catalog_count }} uploaded
+      </span>
+      <form hx-post="/partials/sources/{{ s.id }}/pipeline"
+            hx-target="#sources-panel"
+            hx-swap="innerHTML"
+            class="flex items-center gap-1">
+        <select name="pipeline_id"
+                class="text-xs px-1 py-0.5 rounded"
+                style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;max-width: 13rem;"
+                title="Pipeline used for destination options in catalog"
+                onchange="this.form.requestSubmit()">
+          <option value="" {% if not s.pipeline_id %}selected{% endif %}>no pipeline</option>
+          {% for p in pipelines %}
+            <option value="{{ p.id }}" {% if s.pipeline_id == p.id %}selected{% endif %}>
+              {{ p.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </form>
+      {% if s.pipeline_id %}
+        <a href="/downloads?pipeline_id={{ s.pipeline_id }}"
+           class="text-xs px-1.5 py-0.5 rounded"
+           style="color:#58a6ff;border:1px solid #30363d;text-decoration:none;"
+           title="Open Downloads filtered to this pipeline">downloads</a>
+      {% endif %}
+      {% set dlq = s.dlq_counts or {} %}
+      {% if dlq %}
+        <span class="flex items-center gap-1" title="download_queue rows for this source">
+          {% if dlq.get('pending') %}
+            <span class="text-xs px-1.5 py-0.5 rounded font-mono"
+                  style="background:#3a2a0d;color:#d29922;border:1px solid #735c1f;"
+                  title="pending hydration">⏳ {{ dlq['pending'] }}</span>
+          {% endif %}
+          {% if dlq.get('hydrated') %}
+            <span class="text-xs px-1.5 py-0.5 rounded font-mono"
+                  style="background:#0d2a3a;color:#58a6ff;border:1px solid #1f4d73;"
+                  title="hydrated → jobs created">▶ {{ dlq['hydrated'] }}</span>
+          {% endif %}
+          {% if dlq.get('downloading') %}
+            <span class="text-xs px-1.5 py-0.5 rounded font-mono"
+                  style="background:#0d2a3a;color:#79c0ff;border:1px solid #1f4d73;"
+                  title="downloading">⬇ {{ dlq['downloading'] }}</span>
+          {% endif %}
+          {% if dlq.get('complete') %}
+            <span class="text-xs px-1.5 py-0.5 rounded font-mono"
+                  style="background:#0d2d1a;color:#3fb950;border:1px solid #1f5732;"
+                  title="complete">✓ {{ dlq['complete'] }}</span>
+          {% endif %}
+          {% if dlq.get('failed') %}
+            <span class="text-xs px-1.5 py-0.5 rounded font-mono"
+                  style="background:#3a1d1d;color:#f85149;border:1px solid #6e2929;"
+                  title="failed">✗ {{ dlq['failed'] }}</span>
+          {% endif %}
+          {% if dlq.get('cancelled') %}
+            <span class="text-xs px-1.5 py-0.5 rounded font-mono"
+                  style="background:#2a2a2a;color:#8b949e;border:1px solid #444;"
+                  title="cancelled">⊘ {{ dlq['cancelled'] }}</span>
+          {% endif %}
+        </span>
+      {% endif %}
+      {% if s.last_scan_error %}
+        <span class="text-xs px-1.5 py-0.5 rounded"
+              style="background: #3a1d1d; color: #f0a3a3;"
+              title="{{ s.last_scan_error }}">⚠ scan error</span>
+      {% elif s.last_scanned_at %}
+        <span class="text-xs" style="color: #8b949e;"
+              title="last scanned {{ s.last_scanned_at }}">scanned</span>
+      {% else %}
+        <span class="text-xs" style="color: #d29922;">never scanned</span>
+      {% endif %}
+      {% if s.scan_in_progress %}
+        <span class="text-xs px-2 py-1 rounded font-medium inline-flex items-center gap-1"
+              style="background: #21262d; color: #d29922; border: 1px solid #735c1f;"
+              title="yt-dlp scan running in background (job #{{ s.scan_job_id }})">
+          <span class="animate-pulse">○</span> scanning…
+        </span>
+      {% else %}
+        <button class="text-xs px-2 py-1 rounded font-medium"
+                style="background: #1f6feb; color: white;"
+                hx-post="/partials/sources/{{ s.id }}/scan"
+                hx-target="#sources-panel"
+                hx-swap="innerHTML"
+                hx-indicator="#scan-spinner-{{ s.id }}">
+          Re-scan
+        </button>
+        <span id="scan-spinner-{{ s.id }}" class="htmx-indicator text-xs"
+              style="color: var(--text-muted);">…</span>
+      {% endif %}
+      <button class="text-xs px-2 py-1 rounded hover:bg-red-900"
+              style="color: #f85149;"
+              hx-delete="/partials/sources/{{ s.id }}"
+              hx-target="#sources-panel"
+              hx-swap="innerHTML"
+              hx-confirm="Delete source '{{ s.name }}' and its catalog rows? Upload ledger is preserved.">
+        &times;
+      </button>
+    </li>
+  {% endfor %}
+</ul>
+</div>
+{% endif %}

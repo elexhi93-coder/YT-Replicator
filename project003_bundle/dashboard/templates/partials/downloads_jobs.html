@@ -1,0 +1,193 @@
+{# Renders the active+recent jobs table for the Downloads tab. #}
+<style>
+@keyframes dl-shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position: 600px 0; }
+}
+.dl-progress {
+  height: 2px;
+  width: 100%;
+  border-radius: 1px;
+  margin-top: 4px;
+  background: linear-gradient(90deg, transparent 0%, #a371f7 50%, transparent 100%);
+  background-size: 600px 2px;
+  animation: dl-shimmer 1.6s infinite linear;
+}
+.dl-progress-blue {
+  background: linear-gradient(90deg, transparent 0%, #58a6ff 50%, transparent 100%);
+  background-size: 600px 2px;
+  animation: dl-shimmer 1.6s infinite linear;
+}
+</style>
+{% if flash %}
+<div class="mb-3 px-3 py-2 rounded text-sm"
+     style="background: #1c2c1c; color: #7ee787; border: 1px solid #2ea043;">
+  {{ flash }}
+</div>
+{% endif %}
+
+{% set status_color = {
+  'pending':     ('#2c2a17', '#d29922'),
+  'downloading': ('#122b40', '#58a6ff'),
+  'downloaded':  ('#0e2a1d', '#3fb950'),
+  'processing':  ('#122b40', '#58a6ff'),
+  'processed':   ('#0e2a1d', '#3fb950'),
+  'uploading':   ('#122b40', '#58a6ff'),
+  'uploaded':    ('#0e2a1d', '#3fb950'),
+  'partial':     ('#2c2a17', '#d29922'),
+  'failed':      ('#2d1416', '#f85149'),
+  'done':        ('#11321b', '#3fb950'),
+} %}
+
+{% if not jobs %}
+<p style="color: #8b949e;">No active jobs.</p>
+{% else %}
+<div class="overflow-x-auto rounded" style="border: 1px solid #30363d;">
+  <table class="w-full text-sm">
+    <thead style="background: #161b22; color: #8b949e;">
+      <tr>
+        <th class="text-left  px-2 py-2">#</th>
+        <th class="text-left  px-2 py-2">Video</th>
+        <th class="text-left  px-2 py-2">Channel</th>
+        <th class="text-right px-2 py-2" title="Video length">⏱ Length</th>
+        <th class="text-right px-2 py-2" title="View count on YouTube">👁 Views</th>
+        <th class="text-left  px-2 py-2" title="Original upload date">📅 Uploaded</th>
+        <th class="text-right px-2 py-2" title="Downloaded file size">💾 Size</th>
+        <th class="text-left  px-2 py-2">Status</th>
+        <th class="text-left  px-2 py-2" title="Last updated in DB">Updated</th>
+        <th class="text-right px-2 py-2">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for j in jobs %}
+      {% set status_key = j.display_status if j.display_status is defined else j.status %}
+      {% set bg, fg = status_color.get(status_key, ('#1c222b', '#c9d1d9')) %}
+      <tr style="background: {{ bg }}22; border-top: 1px solid #21262d; border-left: 3px solid {{ fg }};">
+        <td class="px-2 py-2 text-xs align-top" style="color: #8b949e;">{{ j.id }}</td>
+
+        {# Video: thumbnail + title + id + path/error #}
+        <td class="px-2 py-2 align-top">
+          <div class="flex items-start gap-2">
+            {% if j.disp_thumb %}
+            <img src="{{ j.disp_thumb }}" alt=""
+                 loading="lazy"
+                 class="rounded flex-shrink-0"
+                 style="width: 80px; height: 45px; object-fit: cover; border: 1px solid #30363d;" />
+            {% else %}
+            <div class="rounded flex-shrink-0 flex items-center justify-center"
+                 style="width: 80px; height: 45px; background: #161b22; border: 1px solid #30363d; color: #6e7681; font-size: 10px;">
+              no thumb
+            </div>
+            {% endif %}
+            <div class="min-w-0">
+              <div class="font-medium text-white truncate"
+                   style="max-width: 360px;"
+                   title="{{ j.original_title }}">
+                {{ j.original_title or j.youtube_video_id }}
+              </div>
+              <div class="text-xs font-mono mt-0.5" style="color: #8b949e;">
+                {{ j.youtube_video_id }}
+                {% if j.pipeline_name %}
+                  · <span style="color: #6e7681;">{{ j.pipeline_name }}</span>
+                {% endif %}
+              </div>
+              {% if j.error_message %}
+              <div class="text-xs mt-0.5 truncate"
+                   style="max-width: 360px; color: #f85149;"
+                   title="{{ j.error_message }}">
+                ⚠ {{ j.error_message }}
+              </div>
+              {% elif j.source_file_path %}
+              <div class="text-xs mt-0.5 truncate"
+                   style="max-width: 360px; color: #6e7681;"
+                   title="{{ j.source_file_path }}">
+                {{ j.source_file_path }}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </td>
+
+        <td class="px-2 py-2 text-xs align-top" style="color: #c9d1d9;">
+          {{ j.channel_name or '—' }}
+        </td>
+
+        <td class="px-2 py-2 text-right text-xs align-top font-mono" style="color: #c9d1d9;">
+          {{ j.disp_duration or '—' }}
+        </td>
+
+        <td class="px-2 py-2 text-right text-xs align-top font-mono" style="color: #c9d1d9;"
+            {% if j.disp_likes %}title="{{ j.disp_likes }} likes"{% endif %}>
+          {{ j.disp_views or '—' }}
+        </td>
+
+        <td class="px-2 py-2 text-xs align-top font-mono" style="color: #c9d1d9;">
+          {{ j.disp_upload_date or '—' }}
+        </td>
+
+        <td class="px-2 py-2 text-right text-xs align-top font-mono" style="color: #c9d1d9;"
+            {% if j.disp_size_bytes %}title="{{ j.disp_size_bytes }} bytes"{% endif %}>
+          {{ j.disp_size or '—' }}
+        </td>
+
+        <td class="px-2 py-2 align-top">
+          <span class="px-1.5 py-0.5 rounded text-xs font-semibold"
+                style="background: {{ bg }}; color: {{ fg }};">{{ status_key }}</span>
+          {% if j.retry_count and j.retry_count > 0 %}
+          <div class="text-xs mt-1" style="color: #8b949e;">
+            retry {{ j.retry_count }}
+          </div>
+          {% endif %}
+          {% if j.status in ('downloading', 'uploading') %}
+          {% set _pct = j.dq_progress_pct or 0 %}
+          {% if _pct and _pct > 0 %}
+          <div class="mt-1" style="width: 100%; min-width: 80px;">
+            <div style="height: 6px; background: #21262d; border-radius: 3px; overflow: hidden;">
+              <div style="height: 100%; width: {{ _pct }}%; background: linear-gradient(90deg, #58a6ff, #a371f7); transition: width 0.5s ease;"></div>
+            </div>
+            <div class="text-xs mt-0.5 font-mono" style="color: #8b949e;">
+              {{ j.dq_progress_detail or (_pct ~ '%') }}
+            </div>
+          </div>
+          {% else %}
+          <div class="dl-progress mt-1"></div>
+          {% endif %}
+          {% elif j.status in ('processing', 'downloaded', 'processed') %}
+          <div class="dl-progress dl-progress-blue mt-1"></div>
+          {% endif %}
+        </td>
+
+        <td class="px-2 py-2 text-xs align-top font-mono" style="color: #8b949e;"
+            title="created {{ j.disp_created }}">
+          {{ j.disp_updated }}
+        </td>
+
+        <td class="px-2 py-2 text-right whitespace-nowrap align-top">
+          {% if j.source_url %}
+          <a href="{{ j.source_url }}" target="_blank" rel="noopener"
+             class="text-xs mr-2" style="color: #58a6ff;"
+             title="Open on YouTube">↗</a>
+          {% endif %}
+          {% if j.status in ('failed', 'partial') %}
+          <button class="text-xs px-2.5 py-1 rounded mr-1 font-semibold"
+                  style="background: #2d1416; color: #f85149; border: 1px solid #f8514970;"
+                  hx-post="/downloads/jobs/{{ j.id }}/retry"
+                  hx-target="#downloads-jobs"
+                  hx-swap="innerHTML">↻ Retry</button>
+          {% endif %}
+          {% if j.status in ('pending','downloading','downloaded',
+                             'processing','processed','partial') %}
+          <button class="text-xs px-2 py-1 rounded"
+                  style="background: #21262d; color: #8b949e; border: 1px solid #30363d;"
+                  hx-post="/downloads/jobs/{{ j.id }}/cancel"
+                  hx-target="#downloads-jobs"
+                  hx-swap="innerHTML"
+                  hx-confirm="Cancel job {{ j.id }}?">✕</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}

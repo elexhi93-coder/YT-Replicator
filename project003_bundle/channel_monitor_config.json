@@ -1,0 +1,34 @@
+{
+  "channels": {
+    "Manhwa_Fresh": {
+      "name": "Manhwa Fresh",
+      "url": "https://www.youtube.com/@Manhwa_Fresh",
+      "auto_download": true,
+      "daily_upload_limit": 10,
+      "backfill_complete": true,
+      "backfill_queue": [],
+      "backfill_entry_map": {},
+      "uploads_today": 0,
+      "uploads_today_date": "2026-04-23",
+      "videos_seen": [
+        "RzsN9o7jgH0",
+        "bsAVh0wNaYg",
+        "pzU6qVXfFPY",
+        "QmH3KIazTS4",
+        "fuGSQy1njTE",
+        "actvN3DSLLI",
+        "2ixfzx3L0kw",
+        "lynfA6VwYPc",
+        "XYDK10mfxd0",
+        "2xQcee9aMKs",
+        "Tv4TcuPT9JI",
+        "dgUubY6WiIs",
+        "Fgg0m5L6hwY",
+        "42DLP3pmHPA",
+        "vMyOmvaaFIk",
+        "gI-8SneqmR4"
+      ],
+      "last_check": "2026-04-23T18:56:31.097094"
+    }
+  }
+}

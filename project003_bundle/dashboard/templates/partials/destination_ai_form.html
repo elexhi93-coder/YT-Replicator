@@ -1,0 +1,91 @@
+{# partials/destination_ai_form.html — per-destination AI prompt editor.
+   Expects: d (destination row dict with ai_* fields).
+   Submits to POST /partials/destinations/<id>/ai which re-renders the
+   parent destination_list partial. #}
+<form hx-post="/partials/destinations/{{ d.id }}/ai"
+      hx-target="#destination-list-{{ d.pipeline_id }}"
+      hx-swap="innerHTML"
+      class="flex flex-col gap-2 p-3 rounded text-sm"
+      style="background:#0d1117; border:1px solid #30363d; color:#e6edf3;">
+  <div class="flex items-center justify-between">
+    <div class="font-bold" style="color:#d2a8ff;">
+      ⚙ AI metadata override — {{ d.label or "(unnamed)" }}
+    </div>
+    <button type="button"
+            class="text-xs px-2 py-0.5 rounded"
+            style="background:#21262d;color:#8b949e;border:1px solid #30363d;"
+            onclick="this.closest('form').remove()">close</button>
+  </div>
+
+  <label class="flex items-center gap-2 text-sm">
+    <input type="checkbox" name="ai_enabled" value="1"
+           {% if d.ai_enabled %}checked{% endif %} />
+    <span>Use OpenRouter to rewrite title / description / tags before upload</span>
+  </label>
+
+  <label class="flex flex-col gap-1">
+    <span class="text-xs" style="color:#8b949e;">
+      Model (OpenRouter ID — type or pick from the list).
+      Free tiers end with <code>:free</code>. See
+      <a href="https://openrouter.ai/models" target="_blank"
+         style="color:#58a6ff;">openrouter.ai/models</a> for the full catalog.
+    </span>
+    <input name="ai_model"
+           list="openrouter-models-{{ d.id }}"
+           value="{{ d.ai_model or '' }}"
+           placeholder="mistralai/mistral-7b-instruct:free"
+           class="px-2 py-1 text-sm rounded font-mono"
+           style="background:#161b22; color:#e6edf3; border:1px solid #30363d;" />
+    <datalist id="openrouter-models-{{ d.id }}">
+      <option value="mistralai/mistral-7b-instruct:free">Mistral 7B (free)</option>
+      <option value="meta-llama/llama-3.2-3b-instruct:free">Llama 3.2 3B (free)</option>
+      <option value="meta-llama/llama-3.3-70b-instruct:free">Llama 3.3 70B (free)</option>
+      <option value="google/gemini-2.0-flash-exp:free">Gemini 2.0 Flash (free)</option>
+      <option value="google/gemma-2-9b-it:free">Gemma 2 9B (free)</option>
+      <option value="qwen/qwen-2.5-7b-instruct:free">Qwen 2.5 7B (free)</option>
+      <option value="deepseek/deepseek-chat-v3:free">DeepSeek Chat v3 (free)</option>
+      <option value="microsoft/phi-3-mini-128k-instruct:free">Phi-3 Mini (free)</option>
+      <option value="openai/gpt-4o-mini">GPT-4o Mini (paid, cheap)</option>
+      <option value="openai/gpt-4o">GPT-4o (paid)</option>
+      <option value="anthropic/claude-3-haiku">Claude 3 Haiku (paid, cheap)</option>
+      <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet (paid)</option>
+      <option value="anthropic/claude-3.5-haiku">Claude 3.5 Haiku (paid)</option>
+      <option value="mistralai/mistral-large">Mistral Large (paid)</option>
+    </datalist>
+  </label>
+
+  <label class="flex flex-col gap-1">
+    <span class="text-xs" style="color:#8b949e;">
+      System prompt (instructions for the AI). Must ask for a JSON object with
+      keys <code>youtube_title</code>, <code>youtube_description</code>,
+      <code>youtube_tags</code>. Leave blank to use the workflow default.
+    </span>
+    <textarea name="ai_system_prompt" rows="6"
+              placeholder="You are a YouTube SEO expert. Return ONLY a raw JSON object (no markdown) with keys: youtube_title (string, max 100 chars, clickbait but accurate), youtube_description (string, 150-300 chars, includes 2-3 hashtags at end), youtube_tags (array of 10-15 lowercase strings)."
+              class="px-2 py-1 text-sm rounded font-mono"
+              style="background:#161b22; color:#e6edf3; border:1px solid #30363d;">{{ d.ai_system_prompt or '' }}</textarea>
+  </label>
+
+  <label class="flex flex-col gap-1">
+    <span class="text-xs" style="color:#8b949e;">
+      User message template. Available placeholders:
+      <code>{title}</code> <code>{channel_name}</code>
+      <code>{description}</code> <code>{tags}</code>
+      <code>{duration}</code> <code>{source_url}</code>
+      <code>{destination_label}</code> <code>{destination_channel}</code>
+      <code>{destination_platform}</code>.
+      Placeholders also work inside the system prompt above.
+      Leave blank for the default <code>"Title: {title}\nChannel: {channel_name}"</code>.
+    </span>
+    <textarea name="ai_user_template" rows="3"
+              placeholder="Original title: {title}&#10;Channel: {channel_name}&#10;Duration: {duration}s&#10;Original description: {description}"
+              class="px-2 py-1 text-sm rounded font-mono"
+              style="background:#161b22; color:#e6edf3; border:1px solid #30363d;">{{ d.ai_user_template or '' }}</textarea>
+  </label>
+
+  <div class="flex gap-2 justify-end">
+    <button type="submit"
+            class="px-3 py-1.5 text-sm rounded font-medium"
+            style="background:#238636; color:white;">Save AI settings</button>
+  </div>
+</form>

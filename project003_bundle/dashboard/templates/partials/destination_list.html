@@ -1,0 +1,191 @@
+{# partials/destination_list.html — destinations list + add form.
+   Expects: pid, destinations, yt_channels, n8n_workflows. #}
+{% set yt_channels = yt_channels|default([]) %}
+{% set n8n_workflows = n8n_workflows|default([]) %}
+<ul class="flex flex-col gap-1 mb-3">
+  {% for d in destinations %}
+    <li class="flex flex-col gap-1 px-2 py-1.5 rounded text-sm"
+        style="background: #161b22; border: 1px solid #30363d;">
+     <div class="flex items-center gap-2">
+      <span class="text-xs px-1.5 py-0.5 rounded font-mono"
+            style="background: #21262d; color: #58a6ff;">{{ d.platform }}</span>
+      <span class="text-white flex-1 truncate" title="{{ d.n8n_webhook_url }}">{{ d.label or "(unnamed)" }}</span>
+      {% if d.workflow_name %}
+      <span class="text-xs px-1.5 py-0.5 rounded truncate max-w-[16rem]"
+            style="background: #1f2933; color: #d2a8ff; border: 1px solid #30363d;"
+            title="n8n workflow: {{ d.workflow_name }}">⚙ {{ d.workflow_name }}</span>
+      {% else %}
+      <span class="text-xs px-1.5 py-0.5 rounded"
+            style="background: #1f2933; color: #8b949e; border: 1px solid #30363d;"
+            title="No matching n8n workflow file found for this webhook">⚙ unknown</span>
+      {% endif %}
+      {% if d.platform == 'youtube' %}
+      <select name="youtube_channel_id"
+              class="text-xs px-1 py-0.5 rounded font-mono max-w-[12rem] truncate"
+              style="background: #0d1117; color: #e6edf3; border: 1px solid #30363d;"
+              hx-post="/partials/destinations/{{ d.id }}/channel"
+              hx-trigger="change"
+              hx-target="#destination-list-{{ pid }}"
+              hx-swap="innerHTML"
+              title="Which YouTube channel uploads from this destination route to (controls per-channel project rotation)">
+        <option value="" {% if not d.youtube_channel_id %}selected{% endif %}>— any channel —</option>
+        {% for ch in yt_channels %}
+          <option value="{{ ch.id }}"
+                  {% if d.youtube_channel_id == ch.id %}selected{% endif %}>
+            {{ ch.title or ch.channel_id or '(unnamed)' }}
+          </option>
+        {% endfor %}
+      </select>
+      {% endif %}
+      <button type="button"
+              class="text-xs px-1.5 py-0.5 rounded"
+              style="background:#1f2933;color:{% if d.ai_enabled %}#3fb950{% else %}#8b949e{% endif %};border:1px solid #30363d;"
+              hx-get="/partials/destinations/{{ d.id }}/ai-form"
+              hx-target="#dest-ai-{{ d.id }}"
+              hx-swap="innerHTML"
+              title="Configure OpenRouter AI prompt for this destination">
+        🤖 AI{% if d.ai_enabled %} ●{% endif %}
+      </button>
+      <select name="default_privacy"
+              class="text-xs px-1 py-0.5 rounded font-mono"
+              style="background: #0d1117; color: #e6edf3; border: 1px solid #30363d;"
+              hx-post="/partials/destinations/{{ d.id }}/privacy"
+              hx-trigger="change"
+              hx-target="#destination-list-{{ pid }}"
+              hx-swap="innerHTML"
+              title="Default privacy for new uploads">
+        {% set cur = (d.default_privacy or 'unlisted') %}
+        <option value="unlisted" {% if cur=='unlisted' %}selected{% endif %}>unlisted</option>
+        <option value="private"  {% if cur=='private'  %}selected{% endif %}>private</option>
+        <option value="public"   {% if cur=='public'   %}selected{% endif %}>public</option>
+      </select>
+      {% if d.enabled %}
+        <span class="text-xs" style="color: #3fb950;">●</span>
+      {% else %}
+        <span class="text-xs" style="color: #8b949e;">○</span>
+      {% endif %}
+      <button type="button"
+              class="text-xs px-1.5 py-0.5 rounded"
+              style="background:#1f2933;color:#79c0ff;border:1px solid #30363d;"
+              hx-post="/api/destinations/{{ d.id }}/test"
+              hx-target="#dest-test-{{ d.id }}"
+              hx-swap="innerHTML"
+              hx-indicator="#dest-test-spin-{{ d.id }}"
+              title="Probe webhook + workflow + bound channel + scheduler. Read-only, never mutates state.">
+        🩺 Test
+      </button>
+      <span id="dest-test-spin-{{ d.id }}" class="htmx-indicator text-xs italic" style="color:#8b949e;">…</span>
+      {# PR7: per-destination upload defaults (comments / kids / tags / category). #}
+      {% if d.platform == 'youtube' %}
+      <button type="button"
+              class="text-xs px-1.5 py-0.5 rounded"
+              style="background:#1f2933;color:{% if not d.default_comments_enabled or d.default_made_for_kids or d.default_tags %}#d29922{% else %}#8b949e{% endif %};border:1px solid #30363d;"
+              hx-get="/partials/destinations/{{ d.id }}/options-form"
+              hx-target="#dest-opts-{{ d.id }}"
+              hx-swap="innerHTML"
+              title="Per-destination upload defaults: comments, made-for-kids, tags, category.">
+        ⚙ Options{% if not d.default_comments_enabled %} ✕💬{% endif %}{% if d.default_made_for_kids %} 🧒{% endif %}
+      </button>
+      {% endif %}
+      <button class="text-xs px-1.5 py-0.5 rounded hover:bg-red-900"
+              style="color: #f85149;"
+              hx-delete="/partials/destinations/{{ d.id }}?pipeline_id={{ pid }}"
+              hx-target="#destination-list-{{ pid }}"
+              hx-swap="innerHTML"
+              hx-confirm="Remove destination '{{ d.label or d.platform }}'?">&times;</button>
+     </div>
+     <div id="dest-ai-{{ d.id }}"></div>
+     <div id="dest-test-{{ d.id }}"></div>
+     <div id="dest-opts-{{ d.id }}"></div>
+    </li>
+  {% else %}
+    <li class="text-xs italic" style="color: #8b949e;">No destinations yet.</li>
+  {% endfor %}
+</ul>
+
+<form hx-post="/partials/pipelines/{{ pid }}/destinations"
+      hx-target="#destination-list-{{ pid }}"
+      hx-swap="innerHTML"
+      hx-on::after-request="if(event.detail.successful) this.reset()"
+      class="flex flex-col gap-2 p-2 rounded"
+      style="background: #161b22; border: 1px solid #30363d;">
+  <div class="flex gap-2">
+    <select name="platform"
+            class="px-2 py-1 text-sm rounded"
+            style="background: #0d1117; color: #e6edf3; border: 1px solid #30363d;">
+      <option value="youtube">youtube</option>
+      <option value="dailymotion">dailymotion</option>
+      <option value="facebook">facebook</option>
+      <option value="tiktok">tiktok</option>
+    </select>
+    <input name="label" placeholder="Label (e.g. Main Channel)"
+           class="px-2 py-1 text-sm rounded flex-1"
+           style="background: #0d1117; color: #e6edf3; border: 1px solid #30363d;" />
+    <select name="default_privacy"
+            class="px-2 py-1 text-sm rounded"
+            style="background: #0d1117; color: #e6edf3; border: 1px solid #30363d;"
+            title="Default privacy">
+      <option value="unlisted" selected>unlisted</option>
+      <option value="private">private</option>
+      <option value="public">public</option>
+    </select>
+  </div>
+  {# --- Optional dropdown: pick from n8n workflow scan to auto-fill the URL.
+        Manual URL input below stays editable for power users.        --- #}
+  {% if n8n_workflows %}
+  <div class="flex items-center gap-2">
+    <label class="text-xs whitespace-nowrap" style="color:#8b949e;">From workflow</label>
+    <select onchange="prefillDestForm{{ pid }}(this)"
+            class="px-2 py-1 text-xs rounded flex-1"
+            style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;"
+            title="Pick an n8n workflow to auto-fill the webhook URL below. You can still edit it manually.">
+      <option value="">— pick a workflow —</option>
+      {% for w in n8n_workflows %}
+        <option value="{{ w.suggested_url }}"
+                data-platform-hint="{{ w.platform_hint }}">
+          {{ w.name }} · {{ w.path }}{% if w.platform_hint %} · {{ w.platform_hint }}{% endif %}
+        </option>
+      {% endfor %}
+    </select>
+    <span class="text-xs italic" style="color:#8b949e;">{{ n8n_workflows|length }} found</span>
+  </div>
+  <script>
+    function prefillDestForm{{ pid }}(sel) {
+      var opt = sel.options[sel.selectedIndex];
+      if (!opt || !opt.value) return;
+      var form = sel.closest('form');
+      if (!form) return;
+      var urlInput  = form.querySelector('input[name="n8n_webhook_url"]');
+      var platSel   = form.querySelector('select[name="platform"]');
+      var labelInp  = form.querySelector('input[name="label"]');
+      if (urlInput) urlInput.value = opt.value;
+      var hint = opt.getAttribute('data-platform-hint') || '';
+      if (hint && platSel) {
+        for (var i = 0; i < platSel.options.length; i++) {
+          if (platSel.options[i].value === hint) { platSel.selectedIndex = i; break; }
+        }
+      }
+      if (labelInp && !labelInp.value) {
+        // Use the workflow name (text before the first " · ") as a friendly default label.
+        labelInp.value = (opt.text.split(' · ')[0] || '').trim();
+      }
+    }
+  </script>
+  {% endif %}
+  <input name="n8n_webhook_url" required
+         placeholder="http://n8n:5678/webhook/…"
+         class="px-2 py-1 text-sm rounded"
+         style="background: #0d1117; color: #e6edf3; border: 1px solid #30363d;" />
+  <select name="youtube_channel_id"
+          class="px-2 py-1 text-sm rounded"
+          style="background: #0d1117; color: #e6edf3; border: 1px solid #30363d;"
+          title="Bind a specific YouTube channel (only used for platform=youtube). Leave blank to use the global rotation.">
+    <option value="">— YouTube channel: any (global rotation) —</option>
+    {% for ch in yt_channels %}
+      <option value="{{ ch.id }}">{{ ch.title or ch.channel_id or '(unnamed)' }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit"
+          class="px-3 py-1 text-sm rounded font-medium self-end"
+          style="background: #238636; color: white;">Add</button>
+</form>

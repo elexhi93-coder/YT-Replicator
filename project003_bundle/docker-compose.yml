@@ -1,0 +1,188 @@
+# project003/docker-compose.yml
+# ================================
+# Multi-platform content replication pipeline.
+#
+# Setup:   cp .env.example .env  &&  edit .env
+# Start:   docker compose up -d --build
+# Stop:    docker compose down
+#
+# Services:
+#   n8n       — workflow automation (port 5678) — DO NOT REBUILD, state in n8n_data volume
+#   dashboard — Flask web UI       (port 8080)
+#   watcher   — channel monitor + downloader
+#   processor — FFmpeg job runner
+
+name: project003
+
+services:
+
+  # -------------------------------------------------------------------
+  # n8n — workflow automation & multi-platform upload orchestration
+  # State persisted in named volume `n8n_data` (do not delete)
+  # -------------------------------------------------------------------
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ${DOWNLOADS_PATH:-./downloads}:/shared/downloads:ro
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=${TIMEZONE:-Europe/Paris}
+      - N8N_LOG_LEVEL=info
+      # Allow Code nodes to use Node.js built-in modules (fs, path)
+      - NODE_FUNCTION_ALLOW_BUILTIN=fs,path
+      # Allow task runner (required for Code node in n8n 2.x)
+      - N8N_RUNNERS_ENABLED=true
+      # Allow Read/Write File node to access mounted downloads dir
+      - N8N_RESTRICT_FILE_ACCESS_TO=/shared/downloads,/home/node/.n8n-files
+      - N8N_BLOCK_FILE_ACCESS_TO_N8N_FILES=false
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # -------------------------------------------------------------------
+  # Dashboard — Flask web UI
+  # http://localhost:8080
+  # -------------------------------------------------------------------
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    image: project003-dashboard
+    container_name: project003-dashboard
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./db:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Read/write access to downloaded videos for direct YT upload + file CRUD
+      - ${DOWNLOADS_PATH:-./downloads}:/shared/downloads:rw
+      # Optional host-drive mounts for Storage Browser popup
+      - ${HOST_C_DRIVE:-C:/}:/host/c:rw
+      # Read access to n8n workflow definitions for label resolution
+      - ./n8n:/app/n8n:ro
+      # YouTube cookies (shared with watcher)
+      - ${COOKIES_DIR:-./cookies}:/cookies:ro
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - DB_PATH=/data/app.db
+      - DOCKER_SOCKET=/var/run/docker.sock
+      - WATCHER_CONTAINER=project003-watcher
+      - PROCESSOR_CONTAINER=project003-processor
+      - PORT=8080
+      # YouTube OAuth (set in .env)
+      - YOUTUBE_CLIENT_ID=${YOUTUBE_CLIENT_ID:-}
+      - YOUTUBE_CLIENT_SECRET=${YOUTUBE_CLIENT_SECRET:-}
+      - YOUTUBE_REDIRECT_URI=${YOUTUBE_REDIRECT_URI:-http://localhost:8080/oauth/youtube/callback}
+      # AI metadata enrichment (set OPENROUTER_API_KEY in .env to enable)
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-mistralai/mistral-7b-instruct:free}
+      - AI_ENRICH_ENABLED=${AI_ENRICH_ENABLED:-1}
+      - AI_ENRICH_TIMEOUT=${AI_ENRICH_TIMEOUT:-20}
+      - YOUTUBE_COOKIES_FILE=${YOUTUBE_COOKIES_FILE:-/cookies/cookies.txt}
+      - FRAGMENT_WORKERS=${FRAGMENT_WORKERS:-4}
+    depends_on:
+      - n8n
+
+  # -------------------------------------------------------------------
+  # bgutil POT provider — generates YouTube Proof-of-Origin tokens
+  # so yt-dlp is not blocked by bot-detection even without cookies.
+  # Maintained by a yt-dlp core maintainer; no account needed.
+  # https://github.com/Brainicism/bgutil-ytdlp-pot-provider
+  # -------------------------------------------------------------------
+  bgutil-provider:
+    image: brainicism/bgutil-ytdlp-pot-provider:latest
+    container_name: project003-bgutil
+    restart: unless-stopped
+    ports:
+      - "4416:4416"
+
+  # -------------------------------------------------------------------
+  # Watcher — headless channel monitor + downloader
+  # -------------------------------------------------------------------
+  watcher:
+    build:
+      context: .
+      dockerfile: watcher/Dockerfile
+    image: project003-watcher
+    container_name: project003-watcher
+    restart: unless-stopped
+    volumes:
+      - ./db:/data
+      - ${DOWNLOADS_PATH:-./downloads}:/downloads
+      # Match dashboard host-drive mounts so selected paths are valid for downloads
+      - ${HOST_C_DRIVE:-C:/}:/host/c:rw
+      # YouTube cookies file — export from browser, place at ./cookies/cookies.txt
+      - ${COOKIES_DIR:-./cookies}:/cookies:ro
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - DB_PATH=/data/app.db
+      - DOWNLOAD_DIR=/downloads
+      - CHECK_INTERVAL=${CHECK_INTERVAL:-15}
+      - DAILY_UPLOAD_LIMIT=${DAILY_UPLOAD_LIMIT:-10}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL:-http://n8n:5678/webhook/idm-yt-download}
+      - DOWNLOAD_WORKERS=${DOWNLOAD_WORKERS:-5}
+      - YOUTUBE_COOKIES_FILE=${YOUTUBE_COOKIES_FILE:-/cookies/cookies.txt}
+      - FRAGMENT_WORKERS=${FRAGMENT_WORKERS:-4}
+    depends_on:
+      n8n:
+        condition: service_healthy
+      bgutil-provider:
+        condition: service_started
+
+  # -------------------------------------------------------------------
+  # Processor — FFmpeg job runner
+  # Polls jobs table for status='downloaded', applies pipeline_steps
+  # -------------------------------------------------------------------
+  processor:
+    build:
+      context: ./processor
+      dockerfile: Dockerfile
+    image: project003-processor
+    container_name: project003-processor
+    restart: unless-stopped
+    volumes:
+      - ./db:/data
+      - ${DOWNLOADS_PATH:-./downloads}:/downloads
+    environment:
+      - DB_PATH=/data/app.db
+      - DOWNLOADS_PATH=/downloads
+      - DASHBOARD_URL=http://dashboard:8080
+      - POLL_INTERVAL=${PROCESSOR_POLL_INTERVAL:-5}
+      - USE_GPU=${USE_GPU:-}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      - dashboard
+    # ─── Uncomment for NVIDIA GPU passthrough (requires NVIDIA Container Toolkit) ───
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+# -------------------------------------------------------------------
+# Named volumes
+
+volumes:
+  n8n_data:
+    driver: local

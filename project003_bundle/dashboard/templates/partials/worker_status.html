@@ -1,0 +1,94 @@
+{# Compact worker status pill for the header. Auto-refreshes every 5s. #}
+{% set status_color = {
+  'busy':    '#3fb950',
+  'idle':    '#8b949e',
+  'stale':   '#d29922',
+  'dead':    '#f85149',
+  'error':   '#f85149',
+  'stopped': '#6e7681',
+} %}
+{# Pick the worst overall display dot (dead > error > stale > busy > idle > stopped). #}
+{% set order = ['dead','error','stale','busy','idle','stopped'] %}
+{% set overall = 'idle' %}
+{% for s in order %}
+  {% if counts.get(s, 0) > 0 and overall == 'idle' and s != 'idle' %}{% set overall = s %}{% endif %}
+{% endfor %}
+{% if total == 0 %}{% set overall = 'idle' %}{% endif %}
+
+<div id="worker-status-widget"
+     class="relative inline-flex items-center gap-2 text-xs"
+     style="color: var(--text-muted);"
+     hx-get="/partials/worker-status"
+     hx-trigger="every 5s"
+     hx-swap="outerHTML">
+  <button type="button"
+          class="inline-flex items-center gap-1.5 px-2 py-1 rounded"
+          style="background: #1c222b; border: 1px solid #30363d; color: #c9d1d9;"
+          onclick="var p = this.nextElementSibling; p.style.display = (p.style.display === 'block' ? 'none' : 'block');">
+    <span class="inline-block w-2 h-2 rounded-full"
+          style="background: {{ status_color.get(overall, '#8b949e') }};"></span>
+    {% if dl_capacity %}
+      <span title="Currently downloading / parallel download slots">
+        <span style="color: {% if dl_active >= dl_capacity %}#d29922{% else %}#3fb950{% endif %};">▼ {{ dl_active }}</span><span style="color:#6e7681;">/{{ dl_capacity }}</span>
+      </span>
+      <span style="color:#30363d;">·</span>
+    {% endif %}
+    <span title="Distinct heartbeating processes (dashboard, watcher, …)">{{ total }} proc{{ '' if total == 1 else 's' }}</span>
+    {% if counts.get('stale', 0) %}
+      <span style="color: #d29922;">· {{ counts.stale }} stale</span>
+    {% endif %}
+    {% if counts.get('dead', 0) %}
+      <span style="color: #f85149;">· {{ counts.dead }} dead</span>
+    {% endif %}
+  </button>
+
+  {# Dropdown panel — hidden by default. #}
+  <div style="display: none; position: absolute; top: 110%; right: 0; min-width: 360px;
+              background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+              padding: 8px; z-index: 60; box-shadow: 0 8px 20px rgba(0,0,0,0.5);">
+    {% if not workers %}
+      <div class="text-xs px-2 py-2 italic" style="color: #8b949e;">
+        No workers registered yet.
+      </div>
+    {% else %}
+      <table class="w-full text-xs">
+        <thead style="color: #8b949e;">
+          <tr>
+            <th class="text-left px-2 py-1 font-medium">Worker</th>
+            <th class="text-left px-2 py-1 font-medium">Status</th>
+            <th class="text-left px-2 py-1 font-medium">Age</th>
+            <th class="text-left px-2 py-1 font-medium">Detail</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for w in workers %}
+            {% set sc = status_color.get(w.display_status, '#8b949e') %}
+            <tr style="border-top: 1px solid #30363d;">
+              <td class="px-2 py-1" style="color: #c9d1d9;">
+                <div class="font-mono">{{ w.worker_id }}</div>
+                {% if w.kind %}
+                  <div style="color: #8b949e;">{{ w.kind }}</div>
+                {% endif %}
+              </td>
+              <td class="px-2 py-1">
+                <span class="inline-flex items-center gap-1">
+                  <span class="inline-block w-2 h-2 rounded-full" style="background: {{ sc }};"></span>
+                  <span style="color: {{ sc }};">{{ w.display_status }}</span>
+                </span>
+              </td>
+              <td class="px-2 py-1 font-mono" style="color: #8b949e;">
+                {% if w.age_s < 60 %}{{ w.age_s }}s
+                {% elif w.age_s < 3600 %}{{ (w.age_s // 60) }}m
+                {% else %}{{ (w.age_s // 3600) }}h{% endif %}
+              </td>
+              <td class="px-2 py-1 truncate" style="color: #c9d1d9; max-width: 220px;"
+                  title="{{ w.detail }}">
+                {{ w.detail or '—' }}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+</div>

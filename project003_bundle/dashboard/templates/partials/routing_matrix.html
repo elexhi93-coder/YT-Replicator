@@ -1,0 +1,72 @@
+{# Routing matrix: rows = sources, columns = destinations. Cells show rule count. #}
+{% if not sources or not destinations %}
+  <div class="rounded p-4 text-sm" style="background: var(--surface); border: 1px solid var(--border); color: var(--text-muted);">
+    {% if not sources %}No sources defined yet. Add a source first.{% else %}No destinations defined yet. Add a destination first.{% endif %}
+  </div>
+{% else %}
+<div class="overflow-x-auto rounded" style="background: var(--surface); border: 1px solid var(--border);">
+  <table class="min-w-full text-sm">
+    <thead>
+      <tr style="background: var(--surface-2); border-bottom: 1px solid var(--border);">
+        <th class="text-left px-3 py-2 font-semibold" style="color: var(--text-muted);">Source ↓ / Destination →</th>
+        {% for d in destinations %}
+          <th class="text-center px-3 py-2 font-semibold" style="color: var(--text);">
+            <div>{{ d.label or ('dest #' ~ d.id) }}</div>
+            <div class="text-xs font-normal" style="color: var(--text-muted);">{{ d.platform or 'youtube' }}</div>
+          </th>
+        {% endfor %}
+        <th class="text-center px-3 py-2 font-semibold" style="color: var(--text-muted);">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in sources %}
+        <tr style="border-bottom: 1px solid var(--border);">
+          <td class="px-3 py-2 font-medium" style="color: var(--text);">
+            <div>{{ s.name or ('source #' ~ s.id) }}</div>
+            <div class="text-xs" style="color: var(--text-muted);">{{ s.kind }} · id={{ s.id }}</div>
+          </td>
+          {% for d in destinations %}
+            {% set count = (rule_counts.get((s.id, d.id), 0)) %}
+            {% set top = rule_top_summary.get((s.id, d.id), '') %}
+            <td class="text-center px-2 py-2">
+              <button hx-get="/partials/routing/cell/{{ s.id }}/{{ d.id }}"
+                      hx-target="#rule-panel"
+                      hx-swap="innerHTML"
+                      {% if top %}title="Top rule: {{ top }}{% if count > 1 %} (+{{ count - 1 }} more){% endif %}"{% else %}title="Click to add a rule"{% endif %}
+                      class="px-3 py-1 rounded text-xs"
+                      style="background: {% if count > 0 %}var(--accent); color: #0d1117{% else %}var(--surface-2); color: var(--text-muted); border: 1px dashed var(--border){% endif %};">
+                {% if count > 0 %}{{ count }} rule{{ '' if count == 1 else 's' }}{% else %}+ add{% endif %}
+              </button>
+            </td>
+          {% endfor %}
+          <td class="text-center px-2 py-2">
+            <button hx-get="/partials/routing/preview/{{ s.id }}"
+                    hx-target="#rule-panel" hx-swap="innerHTML"
+                    class="px-2 py-1 rounded text-xs"
+                    style="background: var(--accent); color: #0d1117;"
+                    title="Dry-run: preview what would be enqueued, then commit">▶ Preview &amp; Run</button>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# Global rules row (source_id IS NULL) #}
+{% if global_rules %}
+<div class="mt-4 rounded p-3" style="background: var(--surface); border: 1px solid var(--border);">
+  <div class="text-xs font-semibold mb-2" style="color: var(--text-muted);">GLOBAL RULES (apply to all sources)</div>
+  <ul class="text-sm space-y-1">
+    {% for r in global_rules %}
+      <li>
+        <button hx-get="/partials/routing/cell/0/{{ r.destination_id }}"
+                hx-target="#rule-panel" hx-swap="innerHTML"
+                class="underline" style="color: var(--accent);">
+          → dest #{{ r.destination_id }} (priority {{ r.priority }}){% if r.label %} — {{ r.label }}{% endif %}
+        </button>
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endif %}

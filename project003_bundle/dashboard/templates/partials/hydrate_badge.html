@@ -1,0 +1,27 @@
+{# Hydrate worker status badge. Expects: state (dict), enabled, batch, interval #}
+{% if not enabled %}
+  <span class="text-xs px-2 py-1 rounded"
+        style="background: #1c222b; color: var(--text-muted); border: 1px solid var(--border);"
+        title="Set HYDRATE_WORKER_ENABLED=1 and restart to enable.">
+    auto-hydrate: off
+  </span>
+{% elif state.last_error %}
+  <span class="text-xs px-2 py-1 rounded"
+        style="background: #3a1d1d; color: #f85149; border: 1px solid #5a1717;"
+        title="{{ state.last_error }}">
+    hydrate error
+  </span>
+{% elif state.running %}
+  <span class="text-xs px-2 py-1 rounded"
+        style="background: #1d2a3a; color: #58a6ff; border: 1px solid #17345a;"
+        title="Currently hydrating source #{{ state.last_source_id }}">
+    hydrating…
+  </span>
+{% else %}
+  <span class="text-xs px-2 py-1 rounded"
+        style="background: #1c222b; color: var(--text-muted); border: 1px solid var(--border);"
+        title="batch={{ batch }} every {{ interval }}s · total hydrated this session: {{ state.total_hydrated }}{% if state.last_run_at %} · last run: {{ state.last_run_at }}{% endif %}">
+    auto-hydrate: idle
+    {%- if state.last_hydrated %} · +{{ state.last_hydrated }}{%- endif %}
+  </span>
+{% endif %}

@@ -1,0 +1,141 @@
+{# Last 10 completed upload_results — card layout with thumbnails. #}
+{% if not rows %}
+  <div class="text-sm italic" style="color: #8b949e;">No completed uploads yet.</div>
+{% else %}
+<div class="space-y-2">
+  {% for r in rows %}
+  {% set is_ok        = r.status in ('uploaded','success') %}
+  {% set is_fail      = r.status == 'failed' %}
+  {% set is_cancelled = r.status == 'cancelled' %}
+  {% set badge_bg = '#11321b' if is_ok else ('#2d1416' if is_fail else ('#1f2228' if is_cancelled else '#21262d')) %}
+  {% set badge_fg = '#3fb950' if is_ok else ('#f85149' if is_fail else ('#8b949e' if is_cancelled else '#c9d1d9')) %}
+  <div class="rounded p-3 flex items-start gap-3"
+       style="background: #0d1117; border: 1px solid #30363d;">
+
+    {# thumbnail #}
+    {% if r.disp_thumb %}
+    <a href="{% if r.upload_url %}{{ r.upload_url }}{% else %}https://www.youtube.com/watch?v={{ r.source_video_id }}{% endif %}"
+       target="_blank" rel="noopener" class="flex-shrink-0">
+      <img src="{{ r.disp_thumb }}" alt=""
+           loading="lazy"
+           class="rounded"
+           style="width: 120px; height: 68px; object-fit: cover; border: 1px solid #30363d;" />
+    </a>
+    {% else %}
+    <div class="flex-shrink-0 rounded flex items-center justify-center"
+         style="width: 120px; height: 68px; background: #161b22; border: 1px solid #30363d; color: #6e7681; font-size: 11px;">
+      no thumb
+    </div>
+    {% endif %}
+
+    {# main column #}
+    <div class="flex-1 min-w-0">
+      <div class="flex items-start justify-between gap-2">
+        <div class="min-w-0">
+          <div class="font-medium text-white truncate"
+               style="max-width: 520px;" title="{{ r.title or '(no title)' }}">
+            {{ r.title or '(no title)' }}
+          </div>
+          <div class="text-xs mt-0.5 font-mono truncate" style="color: #8b949e;">
+            {{ r.channel_name or '—' }} · job #{{ r.job_id }}
+            {% if r.source_video_id %} · {{ r.source_video_id }}{% endif %}
+          </div>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <span class="px-2 py-0.5 rounded text-xs"
+                style="background: {{ badge_bg }}; color: {{ badge_fg }};">
+            {{ r.status }}
+          </span>
+          {% if r.ai_used %}
+          <span class="px-2 py-0.5 rounded text-xs"
+                style="background: #1f1432; color: #d2a8ff; border: 1px solid #553098;"
+                title="AI metadata enrichment used">✨ AI</span>
+          {% endif %}
+        </div>
+      </div>
+
+      {# metadata pill row #}
+      <div class="flex flex-wrap items-center gap-3 mt-2 text-xs font-mono"
+           style="color: #c9d1d9;">
+        {% if r.disp_duration %}
+        <span title="Length">⏱ {{ r.disp_duration }}</span>
+        {% endif %}
+        {% if r.disp_views %}
+        <span title="Views on source">👁 {{ r.disp_views }}</span>
+        {% endif %}
+        {% if r.disp_upload_date %}
+        <span title="Original upload date">📅 {{ r.disp_upload_date }}</span>
+        {% endif %}
+        {% if r.disp_resolution %}
+        <span title="Resolution{% if r.disp_res_long %} · {{ r.disp_res_long }}{% endif %}{% if r.disp_vcodec %} · codec: {{ r.disp_vcodec }}{% endif %}"
+              style="color: #79c0ff;">🎞 {{ r.disp_resolution }}</span>
+        {% endif %}
+        {% if r.disp_format %}
+        <span title="Container format" style="color: #d2a8ff;">📦 {{ r.disp_format }}</span>
+        {% endif %}
+        <span style="color: #6e7681;">→ {{ r.dest_label or r.platform }}</span>
+        <span class="ml-auto" style="color: #6e7681;"
+              title="uploaded {{ r.created_at }}">
+          ↑ {{ (r.created_at or '')[:16].replace('T',' ') }}
+        </span>
+      </div>
+
+      {% if is_fail and r.error_message %}
+      <div class="text-xs mt-2 px-2 py-1 rounded truncate"
+           style="background: #2d1416; color: #f85149; border: 1px solid #7d2027;"
+           title="{{ r.error_message }}">
+        ⚠ {{ r.error_message|truncate(160) }}
+      </div>
+      {% endif %}
+    </div>
+
+    {# actions #}
+    <div class="flex-shrink-0 flex flex-col items-end gap-1 self-center">
+      {% if r.upload_url %}
+      <a href="{{ r.upload_url }}" target="_blank" rel="noopener"
+         class="text-xs px-2 py-1 rounded"
+         style="background: #21262d; color: #58a6ff; border: 1px solid #30363d;">
+         view ↗
+      </a>
+      {% endif %}
+      {% if is_fail %}
+      <button class="text-xs px-2 py-1 rounded"
+              style="background: #1f6feb; color: #ffffff;"
+              hx-post="/api/uploads/manual"
+              hx-vals='{"job_id": {{ r.job_id }}, "destination_ids": [{{ r.destination_id }}]}'
+              hx-ext="json-enc"
+              hx-swap="none"
+              hx-on::after-request="window.showToast('Retry queued', 'info')">
+        ↻ Retry
+      </button>
+      <button class="text-xs px-2 py-1 rounded"
+              style="background: #21262d; color: #f0883e; border: 1px solid #30363d;"
+              hx-post="/partials/uploads/{{ r.id }}/cancel"
+              hx-target="#uploads-recent"
+              hx-swap="innerHTML"
+              hx-confirm="Cancel this failed upload? It will hide the Retry button. Reversible."
+              hx-on::after-request="if(event.detail.successful) window.showToast('Upload cancelled', 'info')"
+              title="Mark this failed upload as cancelled. Status only — no file deleted. Reversible.">
+        ✕ Cancel
+      </button>
+      {% elif is_cancelled %}
+      <span class="text-xs px-2 py-1 rounded"
+            style="background: #21262d; color: #8b949e; border: 1px solid #30363d;"
+            title="You cancelled this failed upload. Click 'Un-cancel' to restore the Retry button.">
+        ⊘ cancelled
+      </span>
+      <button class="text-xs px-2 py-1 rounded"
+              style="background: #21262d; color: #58a6ff; border: 1px solid #30363d;"
+              hx-post="/partials/uploads/{{ r.id }}/uncancel"
+              hx-target="#uploads-recent"
+              hx-swap="innerHTML"
+              hx-on::after-request="if(event.detail.successful) window.showToast('Upload un-cancelled', 'info')"
+              title="Restore this row's failed status (Retry button will reappear).">
+        ↺ Un-cancel
+      </button>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}

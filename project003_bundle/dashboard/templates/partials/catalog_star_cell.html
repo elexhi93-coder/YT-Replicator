@@ -1,0 +1,10 @@
+{# Star toggle cell. Expects: catalog_id, starred (0/1) #}
+<button type="button"
+        class="text-base leading-none"
+        style="background: transparent; border: 0; cursor: pointer; color: {% if starred %}#d29922{% else %}#3a4250{% endif %};"
+        title="{% if starred %}Unstar{% else %}Star this video{% endif %}"
+        hx-post="/api/catalog/{{ catalog_id }}/toggle_star"
+        hx-target="closest td"
+        hx-swap="innerHTML">
+  {% if starred %}★{% else %}☆{% endif %}
+</button>

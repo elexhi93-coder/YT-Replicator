@@ -1,0 +1,23 @@
+{# partials/log_lines.html — colored log output for a single container #}
+{%- if not lines -%}
+<div class="text-gray-500 italic">No log lines for {{ container }} (container may be stopped).</div>
+{%- else -%}
+{%- for line in lines -%}
+{%- set lower = line | lower -%}
+{%- if 'error' in lower or 'traceback' in lower or 'exception' in lower or 'fatal' in lower or '[error]' in lower -%}
+<div style="color:#f85149">{{ line }}</div>
+{%- elif 'warn' in lower -%}
+<div style="color:#d29922">{{ line }}</div>
+{%- elif '[download]' in lower or 'downloading' in lower or 'destination:' in lower or 'merging' in lower -%}
+<div style="color:#a371f7">{{ line }}</div>
+{%- elif '[pending]' in lower or 'drain' in lower or 'cycle' in lower or 'monitor' in lower or 'backfill' in lower -%}
+<div style="color:#58a6ff">{{ line }}</div>
+{%- elif 'complete' in lower or 'success' in lower or 'finished' in lower or '✓' in line or 'downloaded' in lower -%}
+<div style="color:#3fb950">{{ line }}</div>
+{%- elif 'debug' in lower -%}
+<div style="color:#6e7681">{{ line }}</div>
+{%- else -%}
+<div style="color:#c9d1d9">{{ line }}</div>
+{%- endif -%}
+{%- endfor -%}
+{%- endif -%}

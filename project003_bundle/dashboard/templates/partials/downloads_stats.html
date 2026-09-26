@@ -1,0 +1,28 @@
+{# partials/downloads_stats.html — live job status counts for the Downloads tab #}
+{% set stat_info = [
+  ('downloading', '⬇', '#a371f7', '#1a1030', 'Downloading'),
+  ('uploading',   '⬆', '#58a6ff', '#0d2137', 'Uploading'),
+  ('processing',  '⚙', '#58a6ff', '#0d2137', 'Processing'),
+  ('downloaded',  '📦', '#58a6ff', '#0d2137', 'Downloaded'),
+  ('pending',     '⏳', '#d29922', '#2c2a17', 'Pending'),
+  ('partial',     '⚠',  '#d29922', '#2c2a17', 'Partial'),
+  ('failed',      '✗',  '#f85149', '#2d1416', 'Failed'),
+  ('done',        '✓',  '#3fb950', '#0e2a1d', 'Done'),
+] %}
+{% set has_any = namespace(v=false) %}
+<div class="flex flex-wrap gap-2 items-center">
+  {% for key, icon, color, bg, label in stat_info %}
+    {% set n = counts.get(key, 0) %}
+    {% if n %}
+      {% set has_any.v = true %}
+      <span class="px-3 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1"
+            style="background:{{ bg }};color:{{ color }};border:1px solid {{ color }}50;">
+        {{ icon }} {{ label }}: {{ n }}
+      </span>
+    {% endif %}
+  {% endfor %}
+  {% if not has_any.v %}
+    <span class="text-xs" style="color:#6e7681;">No active jobs — queue is clear</span>
+  {% endif %}
+  <span class="ml-auto text-xs" style="color:#484f58;" title="Auto-refreshes every 30s">↻ 30s</span>
+</div>

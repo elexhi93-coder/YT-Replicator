@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Queue — project003{% endblock %}
+{% block head_extra %}
+<script src="https://unpkg.com/htmx.org@1.9.10/dist/ext/sse.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold text-white">Queue</h1>
+  <div class="flex gap-2">
+    <button class="px-3 py-1.5 text-sm rounded font-medium"
+            style="background: #1f6feb; color: white;"
+            hx-post="/partials/test/youtube"
+            hx-target="#test-result"
+            hx-swap="innerHTML"
+            hx-indicator="#test-spinner">
+      Test YouTube Connection
+    </button>
+    <span id="test-spinner" class="htmx-indicator text-sm" style="color:#8b949e">Firing webhook…</span>
+    <button class="px-3 py-1.5 text-sm rounded font-medium"
+            style="background: #238636; color: white;"
+            hx-get="/partials/queue/manual-form"
+            hx-target="#manual-trigger-form"
+            hx-swap="innerHTML">Manual Trigger</button>
+  </div>
+</div>
+
+<div id="test-result" class="mb-4"></div>
+<div id="manual-trigger-form" class="mb-4"></div>
+
+{# ─── Quota banner — only renders when a destination has a quota marker ─── #}
+<div id="quota-banner"
+     hx-get="/partials/quota/banner"
+     hx-trigger="load delay:0.5s, every 30s"
+     hx-swap="innerHTML"></div>
+
+{# ─── Live Activity Panel — auto-refreshes every 3s ─── #}
+<section class="mb-6 bg-gray-950/50 border border-gray-800 rounded-lg p-4">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+      <span class="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+      Live Activity
+    </h2>
+    <button class="text-xs text-gray-400 hover:text-white"
+            hx-get="/partials/activity" hx-target="#activity-panel" hx-swap="innerHTML">
+      Refresh now
+    </button>
+  </div>
+  <div id="activity-panel"
+       hx-get="/partials/activity"
+       hx-trigger="load, every 3s"
+       hx-swap="innerHTML">
+    <div class="text-sm text-gray-500 italic">Loading activity…</div>
+  </div>
+</section>
+
+{# ─── Live Uploads — byte-level progress streamed via SSE ─── #}
+<section class="mb-6 bg-gray-950/50 border border-amber-900/40 rounded-lg p-4">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+      <span class="inline-block w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+      Live Uploads
+    </h2>
+    <div class="flex items-center gap-3 text-xs">
+      <a href="/uploads" class="text-blue-400 hover:underline">Open Uploads tab →</a>
+      <a href="/oauth/youtube/start" class="text-blue-400 hover:underline">Re-connect YouTube</a>
+    </div>
+  </div>
+  <div id="active-uploads"
+       hx-get="/partials/active_uploads"
+       hx-trigger="load delay:1s, sse-progress from:body, sse-upload-done from:body, every 2s"
+       hx-swap="innerHTML">
+    <div class="text-sm text-gray-500 italic">Loading uploads…</div>
+  </div>
+</section>
+
+{# SSE bridge: refresh ONLY on real job_update events, not on the 15s server
+   heartbeat (which would otherwise hammer #queue-content + #active-uploads
+   every heartbeat in addition to their own poll intervals). #}
+<div hx-ext="sse" sse-connect="/api/queue/stream"
+     sse-swap="job_update,heartbeat"
+     hx-swap="none"
+     hx-on::sse-message="if (event.detail && event.detail.type === 'job_update') {
+                          document.getElementById('queue-content').dispatchEvent(new Event('sse-refresh'));
+                          document.body.dispatchEvent(new CustomEvent('sse-progress'));
+                          document.body.dispatchEvent(new CustomEvent('sse-upload-done'));
+                        }">
+</div>
+
+<div id="queue-content"
+     hx-get="/partials/queue"
+     hx-trigger="load delay:1.5s, sse-refresh from:this, every 10s"
+     hx-swap="innerHTML">
+  <p style="color: #8b949e;">Loading…</p>
+</div>
+{% endblock %}

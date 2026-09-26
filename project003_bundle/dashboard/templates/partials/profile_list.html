@@ -1,0 +1,81 @@
+{# partials/profile_list.html — table of profiles #}
+{% if not profiles %}
+  <div class="p-6 rounded-lg text-sm italic"
+       style="background: var(--surface); border: 1px solid var(--border); color: var(--text-muted);">
+    No profiles yet. Click <b>+ New Profile</b> above to create one.
+  </div>
+{% else %}
+<div class="rounded-lg overflow-hidden"
+     style="background: var(--surface); border: 1px solid var(--border);">
+  <table class="w-full text-sm">
+    <thead style="background: var(--surface-2); color: var(--text-muted);">
+      <tr class="text-left">
+        <th class="px-3 py-2 font-medium">Name</th>
+        <th class="px-3 py-2 font-medium">Format</th>
+        <th class="px-3 py-2 font-medium">Subs</th>
+        <th class="px-3 py-2 font-medium">Thumb</th>
+        <th class="px-3 py-2 font-medium">Skip</th>
+        <th class="px-3 py-2 font-medium text-right">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in profiles %}
+      <tr style="border-top: 1px solid var(--border);">
+        <td class="px-3 py-2">
+          <div class="font-medium text-white">
+            {{ p.name }}
+            {% if p.is_default %}
+              <span class="ml-1 text-[10px] px-1.5 py-0.5 rounded"
+                    style="background: #1f6feb; color: white;">DEFAULT</span>
+            {% endif %}
+          </div>
+          {% if p.description %}
+            <div class="text-xs" style="color: var(--text-muted);">{{ p.description }}</div>
+          {% endif %}
+        </td>
+        <td class="px-3 py-2 font-mono text-xs">
+          {% if p.audio_only %}
+            audio-only ({{ p.audio_codec }})
+          {% elif p.custom_format %}
+            <span title="{{ p.custom_format }}">custom</span>
+          {% else %}
+            {% if p.max_height %}{{ p.max_height }}p{% else %}best{% endif %}
+            · {{ p.container }} · {{ p.video_codec }}+{{ p.audio_codec }}
+          {% endif %}
+        </td>
+        <td class="px-3 py-2 text-xs">
+          {% if p.write_subs or p.write_auto_subs %}
+            {{ p.sub_langs }}{% if p.embed_subs %} (embed){% endif %}
+          {% else %}
+            <span style="color: var(--text-muted);">off</span>
+          {% endif %}
+        </td>
+        <td class="px-3 py-2 text-xs">
+          {% if p.write_thumbnail %}yes{% if p.embed_thumbnail %} +embed{% endif %}{% else %}<span style="color: var(--text-muted);">no</span>{% endif %}
+        </td>
+        <td class="px-3 py-2 text-xs">
+          {% if p.skip_live %}live{% endif %}
+          {% if p.skip_shorts %}{% if p.skip_live %} · {% endif %}shorts&lt;{{ p.shorts_max_seconds }}s{% endif %}
+          {% if not p.skip_live and not p.skip_shorts %}<span style="color: var(--text-muted);">none</span>{% endif %}
+        </td>
+        <td class="px-3 py-2 text-right">
+          <button hx-get="/partials/profiles/{{ p.id }}/edit"
+                  hx-target="#profile-form-slot"
+                  hx-swap="innerHTML"
+                  class="px-2 py-1 text-xs rounded"
+                  style="background: var(--surface-2); color: var(--text); border: 1px solid var(--border);">Edit</button>
+          {% if not p.is_default %}
+          <button hx-delete="/partials/profiles/{{ p.id }}"
+                  hx-target="#profiles-panel"
+                  hx-swap="innerHTML"
+                  hx-confirm="Delete profile '{{ p.name }}'? Pipelines using it will fall back to defaults."
+                  class="px-2 py-1 text-xs rounded ml-1"
+                  style="background: #3d1414; color: #f85149; border: 1px solid #5a1d1d;">Delete</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}

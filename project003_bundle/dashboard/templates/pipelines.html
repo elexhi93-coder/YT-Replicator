@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Pipelines — project003{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold text-white">Pipelines</h1>
+  <button class="px-3 py-1.5 text-sm rounded font-medium"
+          style="background: #238636; color: white;"
+          hx-get="/partials/pipelines/new-form"
+          hx-target="#new-pipeline-form"
+          hx-swap="innerHTML">+ New Pipeline</button>
+</div>
+
+<div id="new-pipeline-form" class="mb-4"></div>
+
+<div id="pipeline-list"
+     hx-get="/partials/pipelines"
+     hx-trigger="load"
+     hx-swap="innerHTML">
+  <p style="color: #8b949e;">Loading…</p>
+</div>
+{% endblock %}

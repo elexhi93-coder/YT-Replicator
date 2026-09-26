@@ -1,0 +1,95 @@
+{# partials/history_table.html
+   Expects: rows (list), total (int), page (int), pages (int), limit (int),
+            params (dict of current filter values, used to build paging URLs) #}
+
+{% macro paging_link(label, p, disabled=False) -%}
+  {% if disabled %}
+    <span class="px-2 py-1 text-xs rounded border opacity-40"
+          style="border-color: #30363d; color: #8b949e;">{{ label }}</span>
+  {% else %}
+    <a href="#" class="px-2 py-1 text-xs rounded border hover:bg-gray-700"
+       style="border-color: #30363d; color: #c9d1d9;"
+       hx-get="/partials/history?{{ params }}&page={{ p }}"
+       hx-target="#history-table"
+       hx-swap="innerHTML">{{ label }}</a>
+  {% endif %}
+{%- endmacro %}
+
+<div class="rounded-md border overflow-hidden"
+     style="background: #161b22; border-color: #30363d;">
+  {% if not rows %}
+    <div class="p-8 text-center" style="color: #8b949e;">
+      No history yet.
+    </div>
+  {% else %}
+    <table class="w-full text-sm">
+      <thead style="background: #1c222b; color: #8b949e;">
+        <tr>
+          <th class="text-left px-3 py-2 font-medium">When</th>
+          <th class="text-left px-3 py-2 font-medium">Channel</th>
+          <th class="text-left px-3 py-2 font-medium">Video</th>
+          <th class="text-left px-3 py-2 font-medium">Platform</th>
+          <th class="text-left px-3 py-2 font-medium">Status</th>
+          <th class="text-left px-3 py-2 font-medium">Link</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+          {% set is_ok = r.status == 'success' %}
+          <tr class="border-t" style="border-color: #30363d;">
+            <td class="px-3 py-2 text-xs whitespace-nowrap" style="color: #8b949e;">{{ r.created_at }}</td>
+            <td class="px-3 py-2" style="color: #c9d1d9;">{{ r.channel_name or '—' }}</td>
+            <td class="px-3 py-2 max-w-md">
+              {% set display_title = r.ai_title or r.original_title or '(untitled)' %}
+              <div class="text-white truncate" title="{{ display_title }}">{{ display_title }}</div>
+              {% if r.youtube_video_id %}
+                <div class="text-xs font-mono" style="color: #8b949e;">
+                  <a href="https://youtu.be/{{ r.youtube_video_id }}" target="_blank" rel="noopener" class="underline">{{ r.youtube_video_id }}</a>
+                </div>
+              {% endif %}
+              {% if r.ai_used and r.ai_title and r.original_title and r.ai_title != r.original_title %}
+                <div class="text-xs italic truncate" style="color: #8b949e;"
+                     title="Original: {{ r.original_title }}">
+                  AI rewrote from: {{ r.original_title }}
+                </div>
+              {% endif %}
+              {% if not is_ok and r.error_message %}
+                <div class="text-xs mt-1" style="color: #f85149;">{{ r.error_message }}</div>
+              {% endif %}
+            </td>
+            <td class="px-3 py-2">
+              <span class="text-xs px-1.5 py-0.5 rounded font-mono"
+                    style="background: #21262d; color: #58a6ff;">{{ r.platform }}</span>
+            </td>
+            <td class="px-3 py-2">
+              {% if is_ok %}
+                <span class="text-xs px-2 py-0.5 rounded-full"
+                      style="background: rgba(63,185,80,0.15); color: #3fb950; border: 1px solid #3fb950;">success</span>
+              {% else %}
+                <span class="text-xs px-2 py-0.5 rounded-full"
+                      style="background: rgba(248,81,73,0.15); color: #f85149; border: 1px solid #f85149;">{{ r.status }}</span>
+              {% endif %}
+            </td>
+            <td class="px-3 py-2">
+              {% if r.upload_url %}
+                <a href="{{ r.upload_url }}" target="_blank" rel="noopener"
+                   class="text-xs underline" style="color: #58a6ff;">open</a>
+              {% else %}
+                <span class="text-xs" style="color: #8b949e;">—</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</div>
+
+<div class="flex items-center justify-between mt-3 text-xs" style="color: #8b949e;">
+  <span>{{ total }} result{{ '' if total == 1 else 's' }}</span>
+  <div class="flex items-center gap-2">
+    {{ paging_link('← Prev', page - 1, disabled=(page <= 1)) }}
+    <span>Page {{ page }} of {{ pages }}</span>
+    {{ paging_link('Next →', page + 1, disabled=(page >= pages)) }}
+  </div>
+</div>

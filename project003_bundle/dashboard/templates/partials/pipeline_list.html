@@ -1,0 +1,13 @@
+{# partials/pipeline_list.html — full pipeline list rendered into #pipeline-list #}
+{% if not pipelines %}
+  <div class="rounded-md border p-6 text-center"
+       style="background: #161b22; border-color: #30363d; color: #8b949e;">
+    No pipelines yet. Click <span class="text-white font-medium">+ New Pipeline</span> to create one.
+  </div>
+{% else %}
+  <ul class="flex flex-col gap-3">
+    {% for p in pipelines %}
+      {% include "partials/pipeline_card.html" %}
+    {% endfor %}
+  </ul>
+{% endif %}

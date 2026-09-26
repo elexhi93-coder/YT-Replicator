@@ -1,0 +1,32 @@
+{# partials/queue_manual_form.html — manual job trigger #}
+<form hx-post="/partials/queue/manual"
+      hx-target="#manual-trigger-form"
+      hx-swap="innerHTML"
+      class="flex flex-col gap-2 p-4 rounded-md border"
+      style="background: #161b22; border-color: #30363d;">
+  <div class="text-sm font-semibold text-white">Manual job</div>
+  <input name="url" required placeholder="YouTube URL"
+         class="px-2 py-1 text-sm rounded"
+         style="background: #0d1117; color: #e6edf3; border: 1px solid #30363d;" />
+  <select name="pipeline_id" required
+          class="px-2 py-1 text-sm rounded"
+          style="background: #0d1117; color: #e6edf3; border: 1px solid #30363d;">
+    <option value="">-- select pipeline --</option>
+    {% for p in pipelines %}
+      <option value="{{ p.id }}">{{ p.name }}</option>
+    {% endfor %}
+  </select>
+  <label class="flex items-center gap-2 text-xs" style="color: #8b949e;">
+    <input type="checkbox" name="force" value="1" />
+    force re-download (bypass auto-delete archive guard)
+  </label>
+  <div class="flex gap-2 justify-end">
+    <button type="button"
+            onclick="document.getElementById('manual-trigger-form').innerHTML = ''"
+            class="px-3 py-1 text-sm rounded border"
+            style="border-color: #30363d; color: #c9d1d9;">Cancel</button>
+    <button type="submit"
+            class="px-3 py-1 text-sm rounded font-medium"
+            style="background: #238636; color: white;">Start</button>
+  </div>
+</form>

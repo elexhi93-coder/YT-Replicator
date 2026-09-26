@@ -1,0 +1,96 @@
+{# Renders the file browser for the Downloads tab. #}
+{% if flash %}
+<div class="mb-3 px-3 py-2 rounded text-sm"
+     style="background: {{ '#2d1416' if flash_type == 'error' else '#1c2c1c' }};
+            color: {{ '#f85149' if flash_type == 'error' else '#7ee787' }};
+            border: 1px solid {{ '#7d2027' if flash_type == 'error' else '#2ea043' }};">
+  {{ flash }}
+</div>
+{% endif %}
+
+{# Breadcrumb #}
+<div class="flex items-center gap-1 mb-3 text-sm" style="color: #8b949e;">
+  <button class="px-2 py-0.5 rounded"
+          style="background: #21262d; color: #c9d1d9; border: 1px solid #30363d;"
+          hx-get="/partials/downloads/files"
+          hx-target="#downloads-files" hx-swap="innerHTML">/ downloads</button>
+  {% if listing.cwd %}
+    {% set parts = listing.cwd.split('/') %}
+    {% set acc = [] %}
+    {% for p in parts %}
+      {% set _ = acc.append(p) %}
+      <span>›</span>
+      <button class="px-2 py-0.5 rounded"
+              style="background: #21262d; color: #c9d1d9; border: 1px solid #30363d;"
+              hx-get="/partials/downloads/files?path={{ '/'.join(acc) }}"
+              hx-target="#downloads-files" hx-swap="innerHTML">{{ p }}</button>
+    {% endfor %}
+  {% endif %}
+</div>
+
+{% if listing.error %}
+<p style="color: #f85149;">⚠ {{ listing.error }}</p>
+{% elif not listing.entries %}
+<p style="color: #8b949e;">Empty directory.</p>
+{% else %}
+<div class="overflow-x-auto rounded" style="border: 1px solid #30363d;">
+  <table class="w-full text-sm">
+    <thead style="background: #161b22; color: #8b949e;">
+      <tr>
+        <th class="text-left px-2 py-2">Name</th>
+        <th class="text-right px-2 py-2">Size</th>
+        <th class="text-right px-2 py-2">Items</th>
+        <th class="text-left px-2 py-2 pl-4">Modified</th>
+        <th class="text-right px-2 py-2">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if listing.parent is not none %}
+      <tr style="background: #0d1117; border-top: 1px solid #21262d;">
+        <td class="px-2 py-2" colspan="5">
+          <button class="text-xs"
+                  style="color: #58a6ff;"
+                  hx-get="/partials/downloads/files?path={{ listing.parent }}"
+                  hx-target="#downloads-files" hx-swap="innerHTML">⬑ ..</button>
+        </td>
+      </tr>
+      {% endif %}
+      {% for e in listing.entries %}
+      <tr style="background: #0d1117; border-top: 1px solid #21262d;">
+        <td class="px-2 py-2">
+          {% if e.is_dir %}
+          <button class="text-left"
+                  style="color: #58a6ff;"
+                  hx-get="/partials/downloads/files?path={{ e.rel_path }}"
+                  hx-target="#downloads-files" hx-swap="innerHTML">
+            📁 {{ e.name }}
+          </button>
+          {% else %}
+          <span style="color: #c9d1d9;">📄 {{ e.name }}</span>
+          {% endif %}
+        </td>
+        <td class="px-2 py-2 text-right text-xs" style="color: #c9d1d9;">{{ e.size_h }}</td>
+        <td class="px-2 py-2 text-right text-xs" style="color: #8b949e;">
+          {% if e.is_dir %}{{ e.count }}{% else %}—{% endif %}
+        </td>
+        <td class="px-2 py-2 pl-4 text-xs" style="color: #8b949e;">{{ e.mtime }}</td>
+        <td class="px-2 py-2 text-right">
+          <form hx-post="/downloads/files/delete"
+                hx-target="#downloads-files"
+                hx-swap="innerHTML"
+                hx-confirm="Delete '{{ e.name }}'? This cannot be undone."
+                class="inline">
+            <input type="hidden" name="path"   value="{{ e.rel_path }}" />
+            <input type="hidden" name="parent" value="{{ listing.cwd }}" />
+            <button type="submit" class="text-xs px-2 py-0.5 rounded"
+                    style="background: #21262d; color: #f85149; border: 1px solid #30363d;">
+              ✕ Delete
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}

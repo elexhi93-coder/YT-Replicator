@@ -1,0 +1,87 @@
+{# Recent ledger activity. Expects: ledger_activity (list of dicts). #}
+{% set status_color = {
+  'queued':    '#8b949e',
+  'uploading': '#a371f7',
+  'uploaded':  '#3fb950',
+  'failed':    '#f85149',
+  'removed':   '#6e7681',
+} %}
+{% set trigger_badge = {
+  'cron':     ('#1f6feb', 'rgba(31,111,235,0.15)'),
+  'manual':   ('#d29922', 'rgba(210,153,34,0.15)'),
+  'backfill': ('#a371f7', 'rgba(163,113,247,0.15)'),
+} %}
+
+<div id="ledger-activity-widget"
+     class="rounded-md border p-4 mb-6"
+     style="background: #161b22; border-color: #30363d;"
+     hx-get="/partials/queue/ledger-activity"
+     hx-trigger="every 10s"
+     hx-swap="outerHTML">
+  <div class="flex items-center justify-between mb-3">
+    <div>
+      <div class="text-sm font-semibold uppercase tracking-wide" style="color: #8b949e;">
+        Recent ledger activity
+      </div>
+      <div class="text-xs mt-1" style="color: #8b949e;">
+        Last {{ ledger_activity|length }} rows from <code>upload_ledger</code>.
+        Auto-refreshes every 10s.
+      </div>
+    </div>
+    <button hx-get="/partials/queue/ledger-activity"
+            hx-target="#ledger-activity-widget" hx-swap="outerHTML"
+            class="text-xs px-2 py-1 rounded"
+            style="background: #21262d; color: #c9d1d9; border: 1px solid #30363d;">
+      ↻ Refresh
+    </button>
+  </div>
+
+  {% if not ledger_activity %}
+    <div class="text-sm py-2 italic" style="color: #8b949e;">
+      No ledger rows yet. Run a routing rule or queue a manual upload.
+    </div>
+  {% else %}
+    <table class="w-full text-sm">
+      <thead style="color: #8b949e;">
+        <tr>
+          <th class="text-left px-2 py-1 font-medium">When</th>
+          <th class="text-left px-2 py-1 font-medium">Video</th>
+          <th class="text-left px-2 py-1 font-medium">Destination</th>
+          <th class="text-left px-2 py-1 font-medium">Status</th>
+          <th class="text-left px-2 py-1 font-medium">Trigger</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in ledger_activity %}
+          {% set sc = status_color.get(row.status, '#8b949e') %}
+          {% set tb = trigger_badge.get(row.triggered_by, ('#8b949e', '#21262d')) %}
+          <tr style="border-top: 1px solid #30363d;">
+            <td class="px-2 py-1 font-mono text-xs" style="color: #8b949e;">
+              {{ (row.updated_at or row.created_at or '')[5:16] }}
+            </td>
+            <td class="px-2 py-1" style="color: #c9d1d9;">
+              <div class="text-xs font-mono" style="color: #8b949e;">{{ row.video_id }}</div>
+              <div class="truncate" style="max-width: 360px;" title="{{ row.title }}">{{ row.title }}</div>
+            </td>
+            <td class="px-2 py-1" style="color: #c9d1d9;">
+              {{ row.destination_label }}
+              <span class="text-xs" style="color: #8b949e;">#{{ row.destination_id }}</span>
+            </td>
+            <td class="px-2 py-1">
+              <span class="px-2 py-0.5 rounded text-xs font-medium"
+                    style="background: rgba(255,255,255,0.04); color: {{ sc }}; border: 1px solid {{ sc }};">
+                {{ row.status }}
+              </span>
+            </td>
+            <td class="px-2 py-1">
+              <span class="px-2 py-0.5 rounded text-xs font-medium"
+                    style="background: {{ tb[1] }}; color: {{ tb[0] }};">
+                {{ row.triggered_by }}
+              </span>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</div>

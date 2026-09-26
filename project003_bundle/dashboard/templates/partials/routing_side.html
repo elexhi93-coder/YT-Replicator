@@ -1,0 +1,107 @@
+{# Side panel: rules for a specific (source_id, destination_id) pair. #}
+<div class="rounded p-4" style="background: var(--surface); border: 1px solid var(--border);">
+  <div class="flex items-center justify-between mb-3">
+    <div>
+      <div class="text-base font-semibold" style="color: var(--text);">
+        {% if source %}{{ source.name or ('source #' ~ source.id) }}{% else %}<em>Global</em>{% endif %}
+        <span style="color: var(--text-muted);">→</span>
+        {{ destination.label or ('dest #' ~ destination.id) }}
+        <span class="text-xs ml-2" style="color: var(--text-muted);">{{ destination.platform or 'youtube' }}</span>
+      </div>
+      <div class="text-xs mt-1" style="color: var(--text-muted);">
+        {{ rules|length }} rule(s). First match wins (lowest priority number first).
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button hx-get="/partials/routing/rules/new?source_id={{ source.id if source else 0 }}&destination_id={{ destination.id }}"
+              hx-target="#rule-form-slot" hx-swap="innerHTML"
+              class="px-3 py-1 text-xs rounded font-medium"
+              style="background: #238636; color: white;">+ New rule</button>
+      <button hx-get="/partials/routing/matrix"
+              hx-target="#routing-matrix" hx-swap="innerHTML"
+              onclick="document.getElementById('rule-panel').innerHTML=''"
+              class="px-3 py-1 text-xs rounded"
+              style="background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border);">✕ Close</button>
+    </div>
+  </div>
+
+  <div id="rule-form-slot" class="mb-4"></div>
+
+  {# ---- Test against video ---- #}
+  <div class="rounded p-3 mb-4"
+       style="background: var(--surface-2); border: 1px solid var(--border);">
+    <div class="text-xs font-semibold uppercase tracking-wide mb-2" style="color: var(--text-muted);">
+      Test against video
+    </div>
+    <form hx-get="/partials/routing/test/{{ source.id if source else 0 }}/{{ destination.id }}"
+          hx-target="#rule-test-slot" hx-swap="innerHTML"
+          class="flex gap-2 items-center flex-wrap">
+      <input type="text" name="video_id" placeholder="video id, URL, or pick →"
+             list="catalog-recent-{{ destination.id }}"
+             class="flex-1 min-w-[180px] px-2 py-1 text-sm rounded font-mono"
+             style="background: var(--surface); color: var(--text); border: 1px solid var(--border);">
+      <datalist id="catalog-recent-{{ destination.id }}">
+        {% for v in recent_videos %}
+          <option value="{{ v.video_id }}">{{ v.title or '' }}</option>
+        {% endfor %}
+      </datalist>
+      <button type="submit"
+              class="px-3 py-1 text-xs rounded font-medium"
+              style="background: var(--accent); color: white;">Test</button>
+    </form>
+  </div>
+  <div id="rule-test-slot"></div>
+
+  {% if rules %}
+    <table class="min-w-full text-sm">
+      <thead>
+        <tr style="background: var(--surface-2); border-bottom: 1px solid var(--border);">
+          <th class="text-left px-2 py-1 font-semibold" style="color: var(--text-muted);">#</th>
+          <th class="text-left px-2 py-1 font-semibold" style="color: var(--text-muted);">Pri</th>
+          <th class="text-left px-2 py-1 font-semibold" style="color: var(--text-muted);">Label</th>
+          <th class="text-left px-2 py-1 font-semibold" style="color: var(--text-muted);">Filters</th>
+          <th class="text-left px-2 py-1 font-semibold" style="color: var(--text-muted);">Profile</th>
+          <th class="text-center px-2 py-1 font-semibold" style="color: var(--text-muted);">On</th>
+          <th class="text-right px-2 py-1 font-semibold" style="color: var(--text-muted);">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rules %}
+          <tr style="border-bottom: 1px solid var(--border);">
+            <td class="px-2 py-1" style="color: var(--text-muted);">{{ r.id }}</td>
+            <td class="px-2 py-1" style="color: var(--text);">{{ r.priority }}</td>
+            <td class="px-2 py-1" style="color: var(--text);">{{ r.label or '—' }}</td>
+            <td class="px-2 py-1 text-xs" style="color: var(--text-muted);">
+              {%- set parts = [] -%}
+              {%- if r.title_regex %}{% set _ = parts.append('regex=/' ~ r.title_regex ~ '/') %}{% endif -%}
+              {%- if r.title_excludes %}{% set _ = parts.append('exclude=/' ~ r.title_excludes ~ '/') %}{% endif -%}
+              {%- if r.min_duration %}{% set _ = parts.append('min=' ~ r.min_duration ~ 's') %}{% endif -%}
+              {%- if r.max_duration %}{% set _ = parts.append('max=' ~ r.max_duration ~ 's') %}{% endif -%}
+              {%- if r.skip_shorts %}{% set _ = parts.append('skip_shorts') %}{% endif -%}
+              {%- if r.skip_live %}{% set _ = parts.append('skip_live') %}{% endif -%}
+              {%- if r.tags_any %}{% set _ = parts.append('tags=' ~ (rule_tag_display.get(r.id, r.tags_any))) %}{% endif -%}
+              {{ parts|join(', ') if parts else 'no filters' }}
+            </td>
+            <td class="px-2 py-1" style="color: var(--text-muted);">{{ r.profile_id or '—' }}</td>
+            <td class="px-2 py-1 text-center">
+              {% if r.enabled %}<span style="color: var(--success);">●</span>{% else %}<span style="color: var(--text-muted);">○</span>{% endif %}
+            </td>
+            <td class="px-2 py-1 text-right">
+              <button hx-get="/partials/routing/rules/{{ r.id }}/edit"
+                      hx-target="#rule-form-slot" hx-swap="innerHTML"
+                      class="px-2 py-0.5 rounded text-xs mr-1"
+                      style="background: var(--surface-2); color: var(--accent); border: 1px solid var(--border);">edit</button>
+              <button hx-delete="/partials/routing/rules/{{ r.id }}"
+                      hx-confirm="Delete rule #{{ r.id }}?"
+                      hx-target="#rule-panel" hx-swap="innerHTML"
+                      class="px-2 py-0.5 rounded text-xs"
+                      style="background: var(--surface-2); color: var(--danger); border: 1px solid var(--border);">del</button>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="text-sm italic py-4" style="color: var(--text-muted);">No rules yet. Click "+ New rule" to create one.</div>
+  {% endif %}
+</div>

@@ -1,0 +1,533 @@
+{
+  "name": "project003 — Channel Replicator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "idm-yt-download",
+        "responseMode": "onReceived",
+        "responseData": "firstEntryJson",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook: IDM-YT Download",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "idm-yt-download"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract payload from project003 webhook\nconst body = $input.first().json;\nif (!body.file_path) { throw new Error('No file_path in payload'); }\nif (!body.title)     { throw new Error('No title in payload'); }\nconst filePath = body.file_path.replace(/\\\\/g, '/');\nreturn [{\n  json: {\n    // ── project003 routing identifiers ──\n    job_id:         body.job_id         || null,\n    destination_id: body.destination_id || null,\n    pipeline_id:    body.pipeline_id    || null,\n    video_id:       body.video_id       || null,\n    // ── video metadata ──\n    title:        body.title        || 'Untitled Video',\n    file_path:    filePath,\n    source_url:   body.source_url   || '',\n    channel_name: body.channel_name || '',\n    channel_id:   body.channel_id   || '',\n    channel_url:  body.channel_url  || '',\n    duration:     body.duration     || 0,\n    timestamp:    body.timestamp    || new Date().toISOString(),\n    description:  `Downloaded from ${body.channel_name || 'YouTube'}.\\nSource: ${body.source_url || ''}`,\n  }\n}];"
+      },
+      "id": "prepare-data",
+      "name": "Prepare Video Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://github.com/project003"
+            },
+            {
+              "name": "X-Title",
+              "value": "project003 Channel Replicator"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: 'mistralai/mistral-7b-instruct:free',\n  messages: [\n    {\n      role: 'system',\n      content: 'You are an expert YouTube SEO specialist. Given a video title and channel name, return ONLY a valid JSON object with no markdown, no explanation, just the raw JSON. The object must have these exact keys: youtube_title (max 100 chars, SEO-optimized), youtube_description (150-300 chars, includes keywords and a call-to-action), youtube_tags (array of 10-15 SEO keywords as strings).'\n    },\n    {\n      role: 'user',\n      content: 'Video title: ' + $('Prepare Video Data').item.json.title + '\\nChannel: ' + $('Prepare Video Data').item.json.channel_name + '\\nSource URL: ' + $('Prepare Video Data').item.json.source_url\n    }\n  ],\n  temperature: 0.7,\n  max_tokens: 600\n}) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "node-ai-enrich",
+      "name": "AI: Enrich Metadata",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        740,
+        460
+      ],
+      "continueOnFail": true,
+      "notes": "Calls OpenRouter (free Mistral model) to generate SEO title, description, and tags. continueOnFail=true so upload still works if AI is unavailable."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the AI response and fall back to original metadata if AI fails\nconst original = $('Prepare Video Data').first().json;\nlet aiData = null;\ntry {\n  const aiResponse = $('AI: Enrich Metadata').first().json;\n  const content = aiResponse?.choices?.[0]?.message?.content;\n  if (content) {\n    const cleaned = content.replace(/```json/gi, '').replace(/```/g, '').trim();\n    aiData = JSON.parse(cleaned);\n  }\n} catch (e) { console.log('[project003] AI parse failed: ' + e.message); }\nconst result = {\n  // routing IDs (passthrough)\n  job_id:         original.job_id,\n  destination_id: original.destination_id,\n  pipeline_id:    original.pipeline_id,\n  video_id:       original.video_id,\n  // enriched\n  youtube_title:       (aiData?.youtube_title       || original.title).substring(0, 100),\n  youtube_description:  aiData?.youtube_description || original.description,\n  youtube_tags:         aiData?.youtube_tags        || [],\n  // original passthrough\n  title:        original.title,\n  file_path:    original.file_path,\n  source_url:   original.source_url,\n  channel_name: original.channel_name,\n  channel_id:   original.channel_id,\n  channel_url:  original.channel_url,\n  duration:     original.duration,\n  timestamp:    original.timestamp,\n  ai_used:      !!aiData,\n};\nconsole.log('[project003] AI: ' + (aiData ? 'SUCCESS' : 'FALLBACK') + ' — ' + result.youtube_title);\nreturn [{ json: result }];"
+      },
+      "id": "node-ai-parse",
+      "name": "AI: Parse & Fallback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        460
+      ],
+      "notes": "Parses the AI JSON response. If AI failed or returned invalid JSON, falls back to original title/description from the webhook payload."
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $('Prepare Video Data').item.json.file_path }}",
+        "options": {}
+      },
+      "id": "read-file",
+      "name": "Read Video File",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1220,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "title": "={{ $('AI: Parse & Fallback').item.json.youtube_title }}",
+        "description": "={{ $('AI: Parse & Fallback').item.json.youtube_description }}",
+        "categoryId": "1",
+        "privacyStatus": "unlisted",
+        "options": {
+          "tags": "={{ $('AI: Parse & Fallback').item.json.youtube_tags.join(',') }}"
+        }
+      },
+      "id": "youtube-upload",
+      "name": "YouTube Upload",
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [
+        1460,
+        120
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "pageId": "YOUR_FACEBOOK_PAGE_ID",
+        "description": "={{ $('Prepare Video Data').item.json.title + '\\n\\n' + $('Prepare Video Data').item.json.description }}",
+        "options": {}
+      },
+      "id": "facebook-upload",
+      "name": "Facebook Upload",
+      "type": "n8n-nodes-base.facebook",
+      "typeVersion": 1,
+      "position": [
+        1460,
+        280
+      ],
+      "disabled": true,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://open.tiktokapis.com/v2/post/publish/video/init/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json; charset=UTF-8"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "post_info",
+              "value": "={{ JSON.stringify({ title: $('Prepare Video Data').item.json.title, privacy_level: 'PUBLIC_TO_EVERYONE', disable_duet: false, disable_comment: false, disable_stitch: false, video_cover_timestamp_ms: 1000 }) }}"
+            },
+            {
+              "name": "source_info",
+              "value": "={ \"source\": \"FILE_UPLOAD\", \"video_size\": 0, \"chunk_size\": 10000000, \"total_chunk_count\": 1 }"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tiktok-upload",
+      "name": "TikTok Upload (HTTP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1460,
+        440
+      ],
+      "disabled": true,
+      "continueOnFail": true,
+      "notes": "TikTok uses a 2-step upload. This initiates the upload. Add a second HTTP node to PUT the file to the upload_url returned here."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.instagram.com/v19.0/me/media",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "media_type",
+              "value": "REELS"
+            },
+            {
+              "name": "caption",
+              "value": "={{ $('Prepare Video Data').item.json.title + '\\n\\n' + $('Prepare Video Data').item.json.description }}"
+            },
+            {
+              "name": "share_to_feed",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "instagram-upload",
+      "name": "Instagram Reels (HTTP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1460,
+        600
+      ],
+      "disabled": true,
+      "continueOnFail": true,
+      "notes": "Instagram Reels requires a public video URL. You need a file hosting step (e.g. upload to S3/Cloudflare R2) before this node."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.twitter.com/2/tweets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $('Prepare Video Data').item.json.title + ' ' + $('Prepare Video Data').item.json.source_url }) }}",
+        "options": {}
+      },
+      "id": "twitter-post",
+      "name": "X / Twitter Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1460,
+        760
+      ],
+      "disabled": true,
+      "continueOnFail": true,
+      "notes": "Twitter/X video upload requires the v1.1 chunked media upload API. This node posts a tweet with the source link. Replace with chunked upload flow for full video upload."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://upload.dailymotion.com/v4/upload",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "id": "dailymotion-upload-file",
+      "name": "Dailymotion: Upload File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1460,
+        920
+      ],
+      "disabled": true,
+      "continueOnFail": true,
+      "notes": "Step 1 of 2 — uploads the video binary to Dailymotion's upload server. Returns a 'url' field used in step 2."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.dailymotion.com/me/videos",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "url",
+              "value": "={{ $json.url }}"
+            },
+            {
+              "name": "title",
+              "value": "={{ $('Prepare Video Data').item.json.title }}"
+            },
+            {
+              "name": "description",
+              "value": "={{ $('Prepare Video Data').item.json.description }}"
+            },
+            {
+              "name": "channel",
+              "value": "fun"
+            },
+            {
+              "name": "published",
+              "value": "true"
+            },
+            {
+              "name": "is_created_for_kids",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "dailymotion-publish",
+      "name": "Dailymotion: Publish Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1700,
+        920
+      ],
+      "disabled": true,
+      "continueOnFail": true,
+      "notes": "Step 2 of 2 — creates the video record on Dailymotion using the upload URL from step 1. Change 'channel' to your desired category (fun, music, tech, sport, etc.)."
+    },
+    {
+      "parameters": {
+        "jsCode": "const meta = $('AI: Parse & Fallback').first().json;\n\n// Read YouTube upload result (continueOnFail means errors come through as data)\nlet ytResult = { status: 'skipped' };\ntry {\n  const ytData = $('YouTube Upload').first().json;\n  if (ytData && ytData.id) {\n    ytResult = {\n      status:   'success',\n      video_id: ytData.id,\n      url:      'https://youtube.com/watch?v=' + ytData.id,\n    };\n  } else if (ytData && ytData.error) {\n    ytResult = { status: 'error', error: ytData.error.message || JSON.stringify(ytData.error) };\n  } else {\n    ytResult = { status: 'error', error: 'Unexpected response: ' + JSON.stringify(ytData) };\n  }\n} catch (e) {\n  ytResult = { status: 'error', error: e.message };\n}\n\nconst summary = {\n  title:     meta.title,\n  channel:   meta.channel_name,\n  source:    meta.source_url,\n  processed: new Date().toISOString(),\n  uploads:   { youtube: ytResult },\n};\n\nconst icon = ytResult.status === 'success' ? '[OK]' : '[FAIL]';\nconsole.log('[project003] ' + icon + ' ' + meta.title + ' -> YouTube: ' + ytResult.status);\nif (ytResult.url) console.log('[project003] Published: ' + ytResult.url);\n\nreturn [{ json: summary }];"
+      },
+      "id": "log-results",
+      "name": "Log Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1700,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://dashboard:8080/api/callback",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  job_id:            $('AI: Parse & Fallback').item.json.job_id,\n  destination_id:    $('AI: Parse & Fallback').item.json.destination_id,\n  status:            $json.uploads && $json.uploads.youtube && $json.uploads.youtube.status === 'success' ? 'uploaded' : 'failed',\n  platform:          'youtube',\n  upload_url:        $json.uploads && $json.uploads.youtube ? ($json.uploads.youtube.url || '') : '',\n  error_message:     $json.uploads && $json.uploads.youtube ? ($json.uploads.youtube.error || '') : '',\n  ai_used:           !!$('AI: Parse & Fallback').item.json.ai_used,\n  ai_title:          $('AI: Parse & Fallback').item.json.youtube_title,\n  ai_description:    $('AI: Parse & Fallback').item.json.youtube_description,\n  ai_tags:           $('AI: Parse & Fallback').item.json.youtube_tags\n}) }}",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "notify-dashboard",
+      "name": "Notify Dashboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1940,
+        120
+      ],
+      "continueOnFail": true,
+      "notes": "POSTs the upload outcome to dashboard /api/callback so it appears in /history."
+    }
+  ],
+  "connections": {
+    "Webhook: IDM-YT Download": {
+      "main": [
+        [
+          {
+            "node": "Prepare Video Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Video Data": {
+      "main": [
+        [
+          {
+            "node": "AI: Enrich Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Enrich Metadata": {
+      "main": [
+        [
+          {
+            "node": "AI: Parse & Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Parse & Fallback": {
+      "main": [
+        [
+          {
+            "node": "Read Video File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Video File": {
+      "main": [
+        [
+          {
+            "node": "YouTube Upload",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Facebook Upload",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "TikTok Upload (HTTP)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Instagram Reels (HTTP)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "X / Twitter Post",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Dailymotion: Upload File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YouTube Upload": {
+      "main": [
+        [
+          {
+            "node": "Log Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Facebook Upload": {
+      "main": [
+        [
+          {
+            "node": "Log Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok Upload (HTTP)": {
+      "main": [
+        [
+          {
+            "node": "Log Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instagram Reels (HTTP)": {
+      "main": [
+        [
+          {
+            "node": "Log Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "X / Twitter Post": {
+      "main": [
+        [
+          {
+            "node": "Log Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dailymotion: Upload File": {
+      "main": [
+        [
+          {
+            "node": "Dailymotion: Publish Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dailymotion: Publish Video": {
+      "main": [
+        [
+          {
+            "node": "Log Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Results": {
+      "main": [
+        [
+          {
+            "node": "Notify Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    "channel-replicator"
+  ],
+  "pinData": {}
+}

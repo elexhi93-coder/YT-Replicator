@@ -1,0 +1,87 @@
+{% if not items %}
+  <div class="p-4 text-sm text-gray-500 italic">
+    No projects configured. Add one above to enable rotation.
+  </div>
+{% else %}
+<table class="w-full text-sm">
+  <thead class="bg-gray-800/60 text-gray-400 text-xs uppercase tracking-wide">
+    <tr>
+      <th class="text-left px-3 py-2">Project</th>
+      <th class="text-left px-3 py-2">Channel</th>
+      <th class="text-left px-3 py-2">Today</th>
+      <th class="text-left px-3 py-2">Status</th>
+      <th class="text-right px-3 py-2">Actions</th>
+    </tr>
+  </thead>
+  <tbody class="divide-y divide-gray-800">
+    {% for it in items %}
+      {% set used = it.uploads_today|int %}
+      {% set cap = it.daily_cap|int %}
+      {% set pct = ((used / cap) * 100) if cap else 0 %}
+      {% set quota_blocked = it.quota_resets_at and it.quota_resets_at > '' %}
+      <tr class="{% if not it.active %}opacity-50{% endif %}">
+        <td class="px-3 py-2 align-top">
+          <div class="text-white font-medium">{{ it.label }}</div>
+          <div class="text-[11px] text-gray-500 font-mono truncate max-w-xs"
+               title="{{ it.client_id }}">{{ it.client_id[:32] }}…</div>
+        </td>
+        <td class="px-3 py-2 align-top">
+          {% if it.account_label %}
+            <div class="text-green-400">{{ it.account_label }}</div>
+            <div class="text-[11px] text-gray-500">{{ it.token_updated_at }}</div>
+          {% else %}
+            <a href="/oauth/youtube/start?project_id={{ it.id }}"
+               class="text-xs px-2 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white">
+              Connect channel →
+            </a>
+          {% endif %}
+        </td>
+        <td class="px-3 py-2 align-top w-40">
+          <div class="text-xs text-gray-300 mb-1 font-mono">{{ used }} / {{ cap }}</div>
+          <div class="w-full h-1.5 bg-gray-800 rounded overflow-hidden">
+            <div class="h-full transition-all duration-500
+                        {% if used >= cap %}bg-red-500
+                        {% elif pct > 70 %}bg-amber-500
+                        {% else %}bg-green-500{% endif %}"
+                 style="width: {{ pct|round(0) }}%"></div>
+          </div>
+        </td>
+        <td class="px-3 py-2 align-top">
+          {% if not it.active %}
+            <span class="px-1.5 py-0.5 text-xs rounded bg-gray-700 text-gray-300">paused</span>
+          {% elif quota_blocked %}
+            <span class="px-1.5 py-0.5 text-xs rounded bg-red-700 text-red-100"
+                  title="Resets at {{ it.quota_resets_at }}Z">quota hit</span>
+          {% elif used >= cap %}
+            <span class="px-1.5 py-0.5 text-xs rounded bg-amber-700 text-amber-100">cap reached</span>
+          {% else %}
+            <span class="px-1.5 py-0.5 text-xs rounded bg-green-700 text-green-100">ready</span>
+          {% endif %}
+        </td>
+        <td class="px-3 py-2 align-top text-right whitespace-nowrap">
+          <form method="post" action="/api/projects/{{ it.id }}/toggle" class="inline">
+            <button type="submit"
+                    class="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-100">
+              {% if it.active %}Pause{% else %}Resume{% endif %}
+            </button>
+          </form>
+          <form method="post" action="/api/projects/{{ it.id }}/reset_counter" class="inline">
+            <button type="submit"
+                    class="text-xs px-2 py-1 rounded bg-blue-700 hover:bg-blue-600 text-white"
+                    title="Clear today's counter and quota cooldown">
+              Reset
+            </button>
+          </form>
+          <form method="post" action="/api/projects/{{ it.id }}/delete" class="inline"
+                onsubmit="return confirm('Delete project {{ it.label }}? Existing tokens will be unlinked.');">
+            <button type="submit"
+                    class="text-xs px-2 py-1 rounded bg-red-700 hover:bg-red-600 text-white">
+              Delete
+            </button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}

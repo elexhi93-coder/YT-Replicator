@@ -1,0 +1,773 @@
+{% extends "base.html" %}
+{% block title %}Downloads — project003{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <h1 class="text-2xl font-bold text-white">Downloads</h1>
+  <div class="text-xs" style="color: #8b949e;">
+    Trigger downloads, manage files, retry/cancel jobs.
+  </div>
+</div>
+
+<!-- ── Live stats summary bar ─────────────────────────────────────────── -->
+<div id="downloads-stats-bar"
+     hx-get="/partials/downloads/stats"
+     hx-trigger="load, every 30s"
+     hx-swap="innerHTML"
+     class="mb-5 px-4 py-2.5 rounded-md"
+     style="background:#161b22;border:1px solid #30363d;min-height:36px;">
+  <span class="text-xs" style="color:#484f58;">Loading stats…</span>
+</div>
+
+<nav class="mb-4 rounded-md border px-2 py-2 flex items-center gap-2"
+     style="background:#161b22;border-color:#30363d;"
+     aria-label="Downloads workspace modes">
+  <button id="downloads-tab-queue"
+          type="button"
+          class="downloads-workspace-tab text-sm px-3 py-1.5 rounded font-medium"
+          data-tab="queue"
+          aria-selected="true"
+          style="background:#1f6feb;color:#ffffff;border:1px solid #388bfd;">
+    Queue Control
+  </button>
+  <button id="downloads-tab-ops"
+          type="button"
+          class="downloads-workspace-tab text-sm px-3 py-1.5 rounded"
+          data-tab="ops"
+          aria-selected="false"
+          style="background:#0d1117;color:#8b949e;border:1px solid #30363d;">
+    Operations
+  </button>
+  <button id="downloads-tab-storage"
+          type="button"
+          class="downloads-workspace-tab text-sm px-3 py-1.5 rounded"
+          data-tab="storage"
+          aria-selected="false"
+          style="background:#0d1117;color:#8b949e;border:1px solid #30363d;">
+    Files & Storage
+  </button>
+  <div class="ml-auto text-xs" style="color:#6e7681;">
+    One workspace at a time
+  </div>
+</nav>
+
+<!-- ── 1. Control Deck + Workspace ───────────────────────────────────── -->
+<section class="mb-8">
+    <div id="downloads-control-deck"
+      class="mb-4 rounded-md border px-3 py-3"
+       style="background:#161b22;border-color:#30363d;position:sticky;top:64px;z-index:20;">
+    <div class="flex flex-wrap items-end gap-3">
+      <label class="text-xs flex flex-col gap-1 min-w-[220px] flex-1" style="color:#8b949e;">
+        Find channel
+        <input id="downloads-channel-search"
+               type="text"
+               placeholder="Type channel name..."
+               class="rounded px-2 py-1 text-xs"
+               style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;" />
+      </label>
+
+      <label class="text-xs flex flex-col gap-1" style="color:#8b949e;">
+        Priority view
+        <select id="downloads-priority-filter"
+                class="rounded px-2 py-1 text-xs"
+                style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;">
+          <option value="all">all priorities</option>
+          <option value="high">high (1-25)</option>
+          <option value="normal">normal (26-100)</option>
+          <option value="low">low (101+)</option>
+        </select>
+      </label>
+
+      <button id="downloads-queue-selected"
+              type="button"
+              class="text-xs px-3 py-1.5 rounded font-semibold"
+              style="background:#1f6feb;color:#fff;border:1px solid #388bfd;">
+        Queue selected
+      </button>
+
+      <button id="downloads-clear-search"
+              type="button"
+              class="text-xs px-3 py-1.5 rounded"
+              style="background:#21262d;color:#8b949e;border:1px solid #30363d;">
+        Reset
+      </button>
+
+      <div class="text-xs" style="color:#8b949e;">
+        visible: <span id="downloads-visible-count">0</span>
+      </div>
+      <div class="text-xs" style="color:#8b949e;">
+        selected: <span id="downloads-selected-count">0</span>
+      </div>
+    </div>
+
+    <details class="mt-3">
+      <summary class="text-xs cursor-pointer select-none"
+               style="color:#58a6ff;">
+        Advanced queue controls
+      </summary>
+      <div class="mt-2 pt-2 border-t flex flex-wrap items-end gap-3" style="border-color:#30363d;">
+        <label class="text-xs flex flex-col gap-1" style="color:#8b949e;">
+          Queue count (all cards)
+          <input id="downloads-default-count"
+                 type="number"
+                 min="1"
+                 max="500"
+                 value="5"
+                 class="w-24 rounded px-2 py-1 text-xs"
+                 style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;" />
+        </label>
+
+        <label class="text-xs flex flex-col gap-1" style="color:#8b949e;">
+          Queue order (all cards)
+          <select id="downloads-default-direction"
+                  class="rounded px-2 py-1 text-xs"
+                  style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;">
+            <option value="newest">↓ newest first</option>
+            <option value="oldest">↑ oldest first</option>
+          </select>
+        </label>
+
+        <label class="text-xs flex flex-col gap-1" style="color:#8b949e;">
+          Card sort
+          <select id="downloads-card-sort"
+                  class="rounded px-2 py-1 text-xs"
+                  style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;">
+            <option value="backend">backend order</option>
+            <option value="priority-asc">priority: high → low</option>
+            <option value="priority-desc">priority: low → high</option>
+            <option value="name">name A-Z</option>
+          </select>
+        </label>
+
+        <label class="text-xs flex items-center gap-2 pb-1" style="color:#8b949e;">
+          <input id="downloads-active-priority-only"
+                 type="checkbox"
+                 class="rounded"
+                 style="accent-color:#238636;" />
+          active priority only
+        </label>
+
+        <button id="downloads-apply-defaults"
+                type="button"
+                class="text-xs px-3 py-1.5 rounded font-medium"
+                style="background:#238636;color:#fff;border:1px solid #2ea043;">
+          Apply to visible cards
+        </button>
+        <button id="downloads-select-visible"
+                type="button"
+                class="text-xs px-3 py-1.5 rounded"
+                style="background:#0d1117;color:#58a6ff;border:1px solid #30363d;">
+          Select visible
+        </button>
+
+        <div class="flex items-center gap-1 ml-auto">
+          <button type="button"
+                  class="downloads-preset-count text-xs px-2 py-1 rounded"
+                  data-count="5"
+                  style="background:#0d1117;color:#58a6ff;border:1px solid #30363d;">5</button>
+          <button type="button"
+                  class="downloads-preset-count text-xs px-2 py-1 rounded"
+                  data-count="10"
+                  style="background:#0d1117;color:#58a6ff;border:1px solid #30363d;">10</button>
+          <button type="button"
+                  class="downloads-preset-count text-xs px-2 py-1 rounded"
+                  data-count="20"
+                  style="background:#0d1117;color:#58a6ff;border:1px solid #30363d;">20</button>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+    <section id="downloads-panel-channels"
+         class="xl:col-span-4 rounded-md border p-3"
+             style="background:#161b22;border-color:#30363d;">
+      <div class="flex items-center justify-between mb-3 gap-3 flex-wrap">
+        <h2 class="text-lg font-semibold text-white">Channels</h2>
+        <form method="get" action="/downloads" class="flex items-center gap-2 text-xs">
+          <label style="color:#8b949e;">Pipeline</label>
+          <select name="pipeline_id"
+                  class="rounded px-2 py-1 text-xs"
+                  style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;"
+                  onchange="this.form.submit()">
+            <option value="">all pipelines</option>
+            {% for p in pipelines %}
+              <option value="{{ p.id }}" {% if selected_pipeline_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+            {% endfor %}
+          </select>
+          {% if selected_pipeline_id %}
+            <a href="/downloads"
+               class="px-2 py-1 rounded"
+               style="color:#8b949e;border:1px solid #30363d;text-decoration:none;">clear</a>
+          {% endif %}
+        </form>
+      </div>
+
+      <div id="downloads-sources"
+           hx-get="/partials/downloads/sources{% if selected_pipeline_id %}?pipeline_id={{ selected_pipeline_id }}{% endif %}"
+           hx-trigger="load, every 90s"
+           hx-swap="innerHTML">
+        <p style="color: #8b949e;">Loading channels…</p>
+      </div>
+    </section>
+
+    <section id="downloads-panel-ops"
+         class="xl:col-span-8 rounded-md border p-3"
+             style="background:#161b22;border-color:#30363d;">
+      <div class="flex items-center justify-between mb-3 gap-3 flex-wrap">
+        <h2 class="text-lg font-semibold text-white">Jobs & Live Monitor</h2>
+        <div class="flex items-center gap-3">
+          <label class="text-xs flex items-center gap-1" style="color: #6e7681;">
+            Workers:
+            <select id="live-workers-select"
+                    name="live-workers-select"
+                    class="rounded px-1.5 py-0.5 text-xs"
+                    style="background:#21262d;color:#e6edf3;border:1px solid #30363d;"
+                    hx-post="/api/settings/download-workers"
+                    hx-trigger="change"
+                    hx-swap="none">
+              <option value="1" {% if download_workers == 1 %}selected{% endif %}>1 (serial)</option>
+              <option value="2" {% if download_workers == 2 or not download_workers %}selected{% endif %}>2 parallel</option>
+              <option value="3" {% if download_workers == 3 %}selected{% endif %}>3 parallel</option>
+              <option value="4" {% if download_workers == 4 %}selected{% endif %}>4 parallel</option>
+              <option value="5" {% if download_workers == 5 %}selected{% endif %}>5 parallel</option>
+            </select>
+          </label>
+          <label class="text-xs flex items-center gap-1" style="color: #6e7681;">
+            Refresh:
+            <select id="live-interval-select"
+                    class="rounded px-1.5 py-0.5 text-xs"
+                    style="background:#21262d;color:#e6edf3;border:1px solid #30363d;">
+              <option value="0">manual</option>
+              <option value="10">every 10s</option>
+              <option value="30">every 30s</option>
+              <option value="60" selected>every 1 min</option>
+              <option value="300">every 5 min</option>
+            </select>
+          </label>
+          <button onclick="document.getElementById('downloads-live').dispatchEvent(new Event('manual-refresh'))"
+                  class="text-xs px-3 py-1 rounded font-medium"
+                  style="background:#21262d;color:#58a6ff;border:1px solid #30363d;">
+            ↻ Refresh live
+          </button>
+        </div>
+      </div>
+
+      <div class="rounded-md border p-3 mb-3"
+           style="background:#0d1117;border-color:#30363d;">
+        <div id="downloads-live"
+             hx-get="/partials/downloads/live"
+             hx-trigger="load, manual-refresh"
+             hx-swap="innerHTML">
+          <p style="color: #8b949e;">Loading…</p>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-sm font-semibold" style="color:#c9d1d9;">Active + Recent Jobs</div>
+        <button class="text-xs px-2 py-1 rounded"
+                style="background: #21262d; color: #c9d1d9; border: 1px solid #30363d;"
+                hx-get="/partials/downloads/jobs"
+                hx-target="#downloads-jobs"
+                hx-swap="innerHTML">↻ Refresh jobs</button>
+      </div>
+      <div id="downloads-jobs"
+           hx-get="/partials/downloads/jobs"
+           hx-trigger="load, every 5s"
+           hx-swap="innerHTML">
+        <p style="color: #8b949e;">Loading jobs…</p>
+      </div>
+    </section>
+  </div>
+</section>
+
+<script>
+(function () {
+  var timer = null;
+  var activeTab = 'queue';
+
+  function _priorityBandMatch(priority, band) {
+    if (band === 'high') return priority >= 1 && priority <= 25;
+    if (band === 'normal') return priority >= 26 && priority <= 100;
+    if (band === 'low') return priority >= 101;
+    return true;
+  }
+
+  function updateSelectedCount() {
+    var selected = document.querySelectorAll('#downloads-sources .download-channel-select:checked').length;
+    var el = document.getElementById('downloads-selected-count');
+    if (el) el.textContent = String(selected);
+  }
+
+  function applyChannelSearchFilter() {
+    var qEl = document.getElementById('downloads-channel-search');
+    var q = (qEl && qEl.value ? qEl.value : '').toLowerCase().trim();
+    var priorityEl = document.getElementById('downloads-priority-filter');
+    var band = priorityEl && priorityEl.value ? priorityEl.value : 'all';
+    var activePriorityOnlyEl = document.getElementById('downloads-active-priority-only');
+    var activePriorityOnly = !!(activePriorityOnlyEl && activePriorityOnlyEl.checked);
+
+    var cards = document.querySelectorAll('#downloads-sources .download-channel-card');
+    var visibleCount = 0;
+    for (var i = 0; i < cards.length; i++) {
+      var card = cards[i];
+      var name = (card.getAttribute('data-channel-name') || '').toLowerCase();
+      var pri = parseInt(card.getAttribute('data-priority') || '100', 10);
+      var isActive = card.getAttribute('data-active') === '1';
+      var hasActivity = card.getAttribute('data-has-activity') === '1';
+      if (isNaN(pri)) pri = 100;
+      var passName = (!q || name.indexOf(q) !== -1);
+      var passPriority = _priorityBandMatch(pri, band);
+      var passActivePriority = !activePriorityOnly || (pri <= 25 && (isActive || hasActivity));
+      var show = passName && passPriority && passActivePriority;
+      card.style.display = show ? '' : 'none';
+      if (!show) {
+        var cb = card.querySelector('.download-channel-select');
+        if (cb) cb.checked = false;
+      }
+      if (show) visibleCount += 1;
+    }
+
+    var visibleEl = document.getElementById('downloads-visible-count');
+    if (visibleEl) visibleEl.textContent = String(visibleCount);
+
+    var sortEl = document.getElementById('downloads-card-sort');
+    var sortMode = sortEl && sortEl.value ? sortEl.value : 'backend';
+    var grid = document.querySelector('#downloads-sources .grid');
+    if (!grid) return;
+
+    var arr = Array.prototype.slice.call(cards);
+    arr.sort(function (a, b) {
+      var aName = (a.getAttribute('data-channel-name') || '');
+      var bName = (b.getAttribute('data-channel-name') || '');
+      var aPri = parseInt(a.getAttribute('data-priority') || '100', 10);
+      var bPri = parseInt(b.getAttribute('data-priority') || '100', 10);
+      var aOrd = parseInt(a.getAttribute('data-original-order') || '0', 10);
+      var bOrd = parseInt(b.getAttribute('data-original-order') || '0', 10);
+      if (isNaN(aPri)) aPri = 100;
+      if (isNaN(bPri)) bPri = 100;
+      if (isNaN(aOrd)) aOrd = 0;
+      if (isNaN(bOrd)) bOrd = 0;
+
+      if (sortMode === 'backend') {
+        return aOrd - bOrd;
+      }
+
+      if (sortMode === 'priority-asc') {
+        if (aPri !== bPri) return aPri - bPri;
+        return aName.localeCompare(bName);
+      }
+      if (sortMode === 'priority-desc') {
+        if (aPri !== bPri) return bPri - aPri;
+        return aName.localeCompare(bName);
+      }
+      return aName.localeCompare(bName);
+    });
+
+    for (var j = 0; j < arr.length; j++) {
+      grid.appendChild(arr[j]);
+    }
+    updateSelectedCount();
+  }
+
+  function applyDefaultsToVisibleCards() {
+    var countEl = document.getElementById('downloads-default-count');
+    var dirEl = document.getElementById('downloads-default-direction');
+    if (!countEl || !dirEl) return;
+
+    var count = parseInt(countEl.value || '5', 10);
+    if (isNaN(count) || count < 1) count = 1;
+    if (count > 500) count = 500;
+
+    var dir = dirEl.value === 'oldest' ? 'oldest' : 'newest';
+    var cards = document.querySelectorAll('#downloads-sources .download-channel-card');
+    for (var i = 0; i < cards.length; i++) {
+      var card = cards[i];
+      if (card.style.display === 'none') continue;
+      var countInput = card.querySelector('.js-queue-count');
+      var dirSelect = card.querySelector('.js-queue-direction');
+      if (countInput) countInput.value = String(count);
+      if (dirSelect) dirSelect.value = dir;
+    }
+  }
+
+  async function queueSelectedCards() {
+    var selectedCards = document.querySelectorAll('#downloads-sources .download-channel-card .download-channel-select:checked');
+    if (!selectedCards.length) return;
+
+    var queued = 0;
+    for (var i = 0; i < selectedCards.length; i++) {
+      var cb = selectedCards[i];
+      var card = cb.closest('.download-channel-card');
+      if (!card || card.style.display === 'none') continue;
+      var form = card.querySelector('.download-trigger-form');
+      if (!form) continue;
+
+      var action = form.getAttribute('hx-post');
+      if (!action) continue;
+
+      var data = new URLSearchParams();
+      var countInput = form.querySelector('input[name="count"]');
+      var dirSelect = form.querySelector('select[name="direction"]');
+      var pipeInput = form.querySelector('input[name="pipeline_id"]');
+      data.set('count', countInput && countInput.value ? countInput.value : '5');
+      data.set('direction', dirSelect && dirSelect.value ? dirSelect.value : 'newest');
+      if (pipeInput && pipeInput.value) data.set('pipeline_id', pipeInput.value);
+
+      try {
+        var resp = await fetch(action, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+          body: data.toString()
+        });
+        if (resp.ok) queued += 1;
+      } catch (e) {
+        // keep queuing other selections
+      }
+    }
+
+    var panel = document.getElementById('downloads-sources');
+    if (panel) {
+      var url = panel.getAttribute('hx-get') || '/partials/downloads/sources';
+      htmx.ajax('GET', url, { target: '#downloads-sources', swap: 'innerHTML' });
+    }
+    var msg = queued > 0 ? ('Queued ' + queued + ' selected channel(s).') : 'No channels were queued.';
+    console.log(msg);
+  }
+
+  function bindDownloadsPracticalControls() {
+    var searchEl = document.getElementById('downloads-channel-search');
+    if (searchEl && !searchEl.dataset.bound) {
+      searchEl.dataset.bound = '1';
+      searchEl.addEventListener('input', applyChannelSearchFilter);
+    }
+
+    var clearBtn = document.getElementById('downloads-clear-search');
+    if (clearBtn && !clearBtn.dataset.bound) {
+      clearBtn.dataset.bound = '1';
+      clearBtn.addEventListener('click', function () {
+        if (searchEl) searchEl.value = '';
+        var p = document.getElementById('downloads-priority-filter');
+        if (p) p.value = 'all';
+        var s = document.getElementById('downloads-card-sort');
+        if (s) s.value = 'backend';
+        var selected = document.querySelectorAll('#downloads-sources .download-channel-select');
+        for (var si = 0; si < selected.length; si++) selected[si].checked = false;
+        applyChannelSearchFilter();
+      });
+    }
+
+    var selectVisibleBtn = document.getElementById('downloads-select-visible');
+    if (selectVisibleBtn && !selectVisibleBtn.dataset.bound) {
+      selectVisibleBtn.dataset.bound = '1';
+      selectVisibleBtn.addEventListener('click', function () {
+        var cards = document.querySelectorAll('#downloads-sources .download-channel-card');
+        for (var i = 0; i < cards.length; i++) {
+          var card = cards[i];
+          if (card.style.display === 'none') continue;
+          var cb = card.querySelector('.download-channel-select');
+          if (cb) cb.checked = true;
+        }
+        updateSelectedCount();
+      });
+    }
+
+    var queueSelectedBtn = document.getElementById('downloads-queue-selected');
+    if (queueSelectedBtn && !queueSelectedBtn.dataset.bound) {
+      queueSelectedBtn.dataset.bound = '1';
+      queueSelectedBtn.addEventListener('click', queueSelectedCards);
+    }
+
+    var priorityFilterEl = document.getElementById('downloads-priority-filter');
+    if (priorityFilterEl && !priorityFilterEl.dataset.bound) {
+      priorityFilterEl.dataset.bound = '1';
+      priorityFilterEl.addEventListener('change', applyChannelSearchFilter);
+    }
+
+    var sortEl = document.getElementById('downloads-card-sort');
+    if (sortEl && !sortEl.dataset.bound) {
+      sortEl.dataset.bound = '1';
+      sortEl.addEventListener('change', applyChannelSearchFilter);
+    }
+
+    var activePriorityOnlyEl = document.getElementById('downloads-active-priority-only');
+    if (activePriorityOnlyEl && !activePriorityOnlyEl.dataset.bound) {
+      activePriorityOnlyEl.dataset.bound = '1';
+      activePriorityOnlyEl.addEventListener('change', applyChannelSearchFilter);
+    }
+
+    var applyBtn = document.getElementById('downloads-apply-defaults');
+    if (applyBtn && !applyBtn.dataset.bound) {
+      applyBtn.dataset.bound = '1';
+      applyBtn.addEventListener('click', applyDefaultsToVisibleCards);
+    }
+
+    var presetBtns = document.querySelectorAll('.downloads-preset-count');
+    for (var i = 0; i < presetBtns.length; i++) {
+      var btn = presetBtns[i];
+      if (btn.dataset.bound) continue;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', function () {
+        var countEl = document.getElementById('downloads-default-count');
+        if (countEl) countEl.value = this.getAttribute('data-count') || '5';
+        applyDefaultsToVisibleCards();
+      });
+    }
+
+    applyChannelSearchFilter();
+    var selectBoxes = document.querySelectorAll('#downloads-sources .download-channel-select');
+    for (var k = 0; k < selectBoxes.length; k++) {
+      var cb = selectBoxes[k];
+      if (cb.dataset.bound) continue;
+      cb.dataset.bound = '1';
+      cb.addEventListener('change', updateSelectedCount);
+    }
+    updateSelectedCount();
+  }
+
+  function applyInterval(secs) {
+    if (timer) { clearInterval(timer); timer = null; }
+    if (secs > 0) {
+      timer = setInterval(function () {
+        var el = document.getElementById('downloads-live');
+        if (el) el.dispatchEvent(new Event('manual-refresh'));
+      }, secs * 1000);
+    }
+  }
+  // apply default on page load
+  applyInterval(60);
+  bindDownloadsPracticalControls();
+
+  document.body.addEventListener('htmx:afterSwap', function (evt) {
+    var target = evt.detail && evt.detail.target;
+    if (target && target.id === 'downloads-sources') {
+      bindDownloadsPracticalControls();
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var sel = document.getElementById('live-interval-select');
+    if (sel) sel.addEventListener('change', function () { applyInterval(+this.value); });
+    bindDownloadsPracticalControls();
+    setWorkspaceTab(activeTab);
+  });
+})();
+</script>
+
+
+<!-- ── 2. Files (Secondary) ───────────────────────────────────────── -->
+<section id="downloads-storage-area" class="mb-8" style="display:none;">
+  <details class="rounded-md border" style="border-color:#30363d;">
+    <summary class="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
+             style="background:#161b22;border-radius:inherit;list-style:none;">
+      <span class="text-sm font-semibold text-white">Files</span>
+      <span class="text-xs" style="color:#8b949e;">secondary panel</span>
+    </summary>
+    <div class="p-4" style="background:#0d1117;border-top:1px solid #30363d;">
+      <div class="flex items-center justify-end mb-3">
+        <button class="text-xs px-2 py-1 rounded"
+                style="background: #21262d; color: #c9d1d9; border: 1px solid #30363d;"
+                hx-get="/partials/downloads/files"
+                hx-target="#downloads-files"
+                hx-swap="innerHTML">↻ Refresh files</button>
+      </div>
+      <div id="downloads-files"
+           hx-get="/partials/downloads/files"
+           hx-trigger="load"
+           hx-swap="innerHTML">
+        <p style="color: #8b949e;">Loading files…</p>
+      </div>
+    </div>
+  </details>
+</section>
+
+<!-- ── 5. Storage location (settings) ───────────────────────────────────── -->
+<section class="mb-8">
+  <details class="rounded-md border" style="border-color: #30363d;">
+    <summary class="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
+             style="background: #161b22; border-radius: inherit; list-style: none;">
+      <span class="text-sm font-semibold text-white">Storage Location</span>
+      <div class="flex items-center gap-3">
+        <code class="text-xs font-mono" style="color: #8b949e;">{{ downloads_root_effective }}</code>
+        {% if downloads_root_effective_exists %}
+          <span class="text-xs" style="color:#3fb950;">● ok</span>
+        {% else %}
+          <span class="text-xs" style="color:#d29922;">● not visible</span>
+        {% endif %}
+        <a href="/docs/external-storage" target="_blank"
+           class="text-xs underline" style="color:#58a6ff;"
+           onclick="event.stopPropagation()">Guide ↗</a>
+      </div>
+    </summary>
+    <div class="p-4" style="background: #0d1117; border-top: 1px solid #30363d;">
+      <div class="text-xs mb-3" style="color:#8b949e;">
+        Downloads are organized as
+        <code style="color:#e6edf3;">&lt;root&gt;/&lt;ChannelName&gt;/&lt;video_id&gt;/&lt;title&gt;.mp4</code>.
+        The <strong>root</strong> is a path inside the watcher container. Default is
+        <code>{{ downloads_root_default }}</code> (bind-mounted from the host via
+        <code>DOWNLOADS_PATH</code> in <code>.env</code>).
+      </div>
+
+      <div class="text-xs mb-3 px-3 py-2 rounded"
+           style="background:#161b22;border:1px solid #30363d;">
+        <span style="color:#8b949e;">Currently active:</span>
+        <code style="color:#e6edf3;">{{ downloads_root_effective }}</code>
+        {% if downloads_root_effective_exists %}
+          <span class="ml-2" style="color:#3fb950;">● visible to dashboard</span>
+        {% else %}
+          <span class="ml-2" style="color:#d29922;">● not visible from dashboard
+            (may still be valid inside the watcher container)</span>
+        {% endif %}
+      </div>
+
+      <div class="text-xs mb-3 p-2 rounded" style="background:#161b22;border:1px solid #30363d;">
+        <div style="color:#8b949e;">Mount diagnostics:</div>
+        <div class="mt-1 grid gap-1" style="grid-template-columns: repeat(auto-fit,minmax(220px,1fr));">
+          {% for d in host_mount_diagnostics %}
+            <div class="px-2 py-1 rounded font-mono" style="background:#0d1117;border:1px solid #21262d;">
+              <span style="color:#8b949e;">{{ d.path }}</span>
+              {% if d.status == 'ok' %}
+                <span style="color:#3fb950;"> ● {{ d.detail }}</span>
+              {% elif d.status == 'warn' %}
+                <span style="color:#d29922;"> ● {{ d.detail }}</span>
+              {% else %}
+                <span style="color:#f85149;"> ● {{ d.detail }}</span>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+        <div class="mt-1" style="color:#8b949e;">
+          If a drive shows "not mounted" or "unreadable", Docker cannot browse it yet.
+        </div>
+      </div>
+
+      <form hx-post="/api/settings/downloads-root"
+            hx-target="#downloads-root-status"
+            hx-swap="innerHTML"
+            class="flex flex-wrap items-end gap-2">
+        <label class="text-xs flex flex-col gap-1 flex-1 min-w-[280px]"
+               style="color:#8b949e;">
+          Override path (inside watcher container)
+          <input type="text" name="downloads_root"
+                 value="{{ downloads_root_override }}"
+                 placeholder="e.g. /external/media or leave empty for default"
+                 class="rounded px-2 py-1 text-xs font-mono"
+                 style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;" />
+        </label>
+        <button type="button"
+                onclick="openFolderBrowser()"
+                class="text-xs px-3 py-1.5 rounded font-medium"
+                style="background:#21262d;color:#58a6ff;border:1px solid #30363d;">
+          Browse…
+        </button>
+        <button type="submit"
+                class="text-xs px-3 py-1.5 rounded font-medium"
+                style="background:#238636;color:#fff;border:1px solid #2ea043;">
+          Save
+        </button>
+      </form>
+      <div id="downloads-root-status"></div>
+
+      <div class="mt-3 flex flex-wrap items-center gap-2 text-xs" style="color:#8b949e;">
+        <span>Quick locations:</span>
+        <button type="button"
+                onclick="document.querySelector('input[name=downloads_root]').value='/downloads';"
+                class="px-2 py-0.5 rounded font-mono"
+                style="background:#0d1117;color:#58a6ff;border:1px solid #30363d;">
+          /downloads (default)
+        </button>
+        {% for loc in quick_locations %}
+          {% if loc.path not in ('/downloads', '/') %}
+            <button type="button"
+                    onclick="document.querySelector('input[name=downloads_root]').value='{{ loc.path }}';"
+                    class="px-2 py-0.5 rounded font-mono"
+                    style="background:#0d1117;color:#58a6ff;border:1px solid #30363d;"
+                    title="{{ loc.label }}">
+              {{ loc.path }}
+            </button>
+          {% endif %}
+        {% endfor %}
+        <button type="button"
+                onclick="document.querySelector('input[name=downloads_root]').value='';"
+                class="px-2 py-0.5 rounded"
+                style="background:#0d1117;color:#7d8590;border:1px solid #30363d;">
+          Clear (use default)
+        </button>
+      </div>
+
+      <details class="text-xs mt-3" style="color:#8b949e;">
+        <summary class="cursor-pointer" style="color:#58a6ff;">
+          How to point this at an external drive
+        </summary>
+        <ol class="list-decimal pl-5 mt-2 space-y-1">
+          <li><strong>Stable Windows path (recommended):</strong> Disk Management →
+              right-click the external partition → <em>Change Drive Letter and Paths</em>
+              → <em>Add</em> → <em>Mount in the following empty NTFS folder</em>.
+              Pick e.g. <code>C:\Mounts\Media</code>. The drive letter can change,
+              but this folder always points to the same volume.</li>
+          <li>In <code>.env</code> set <code>DOWNLOADS_PATH=C:/Mounts/Media</code>
+              (or add a second bind mount in <code>docker-compose.yml</code>).</li>
+          <li>Run <code>docker compose up -d</code> to remount.</li>
+          <li>Set the override above to <code>/downloads</code> (default) or
+              <code>/external</code> (second mount). Save.</li>
+        </ol>
+      </details>
+    </div>
+  </details>
+</section>
+
+<!-- Folder Browser Modal -->
+<div id="folder-browser-overlay"
+     onclick="if(event.target===this)closeFolderBrowser()"
+     style="display:none;position:fixed;inset:0;z-index:9999;
+            background:rgba(0,0,0,0.75);backdrop-filter:blur(2px);
+            align-items:center;justify-content:center;">
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;
+              width:min(680px,95vw);max-height:82vh;display:flex;flex-direction:column;
+              box-shadow:0 24px 64px rgba(0,0,0,0.7);overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                padding:14px 18px 12px;border-bottom:1px solid #30363d;flex-shrink:0;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:16px;">📁</span>
+        <span style="color:#e6edf3;font-size:13px;font-weight:600;">Select Folder</span>
+      </div>
+      <button onclick="closeFolderBrowser()"
+              style="background:none;border:none;color:#8b949e;font-size:20px;
+                     cursor:pointer;line-height:1;padding:2px 8px;border-radius:4px;"
+              onmouseover="this.style.color='#e6edf3'" onmouseout="this.style.color='#8b949e'">
+        &times;
+      </button>
+    </div>
+    <div id="storage-browser"
+         style="flex:1;overflow-y:auto;padding:14px 18px;min-height:200px;">
+      <p style="color:#8b949e;font-size:12px;">Loading…</p>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                padding:12px 18px;border-top:1px solid #30363d;flex-shrink:0;
+                background:#0d1117;">
+      <span style="color:#8b949e;font-size:11px;">
+        Click a folder to navigate &bull; click <strong style="color:#3fb950;">✓ Use this folder</strong> to select
+      </span>
+      <button onclick="closeFolderBrowser()"
+              style="background:#21262d;color:#8b949e;border:1px solid #30363d;
+                     border-radius:5px;padding:5px 16px;font-size:12px;cursor:pointer;">
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>
+<script>
+function openFolderBrowser() {
+  var overlay = document.getElementById('folder-browser-overlay');
+  overlay.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  htmx.ajax('GET', '/api/storage/browse', {target: '#storage-browser', swap: 'innerHTML'});
+}
+function closeFolderBrowser() {
+  document.getElementById('folder-browser-overlay').style.display = 'none';
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeFolderBrowser();
+});
+</script>
+{% endblock %}

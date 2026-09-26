@@ -1,0 +1,35 @@
+{# partials/queue_row.html — single job row. Expects: j (dict). #}
+{# Stage-pipeline indicator using filled/outline/animated dots. #}
+{% set stage_map = {
+  'pending':     ('○○○○○', '#8b949e', 'pending'),
+  'downloading': ('●○○○○', '#58a6ff', 'downloading'),
+  'downloaded':  ('●●○○○', '#58a6ff', 'downloaded'),
+  'processing':  ('●●●○○', '#d29922', 'processing'),
+  'processed':   ('●●●●○', '#d29922', 'processed'),
+  'uploading':   ('●●●●○', '#a371f7', 'uploading'),
+  'done':        ('●●●●● ✓', '#3fb950', 'done'),
+  'partial':     ('●●●●◐',   '#db6d28', 'partial'),
+  'failed':      ('✗', '#f85149', 'failed'),
+} %}
+{% set dots, color, label = stage_map.get(j.status, ('?', '#8b949e', j.status)) %}
+{% set animated = j.status in ('downloading','processing','uploading') %}
+
+<tr id="job-row-{{ j.job_id }}" class="border-t" style="border-color: #30363d;">
+  <td class="px-3 py-2 font-mono text-xs" style="color: #8b949e;">#{{ j.job_id }}</td>
+  <td class="px-3 py-2 max-w-md">
+    <div class="text-white truncate" title="{{ j.video_title or j.youtube_video_id }}">
+      {{ j.video_title or "(untitled)" }}
+    </div>
+    <div class="text-xs font-mono" style="color: #8b949e;">{{ j.youtube_video_id }}</div>
+  </td>
+  <td class="px-3 py-2" style="color: #c9d1d9;">{{ j.channel_name }}</td>
+  <td class="px-3 py-2" style="color: #c9d1d9;">{{ j.pipeline_name }}</td>
+  <td class="px-3 py-2">
+    <span class="inline-flex items-center gap-2 px-2 py-0.5 rounded text-xs font-mono {% if animated %}stage-anim{% endif %}"
+          style="background: rgba(127,127,127,0.10); color: {{ color }}; border: 1px solid {{ color }};">
+      <span>{{ dots }}</span>
+      <span class="uppercase tracking-wide" style="font-size: 10px;">{{ label }}</span>
+    </span>
+  </td>
+  <td class="px-3 py-2 text-xs" style="color: #8b949e;">{{ j.updated_at or j.created_at }}</td>
+</tr>

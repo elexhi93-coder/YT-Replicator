@@ -1,0 +1,158 @@
+{# Channel videos list — used by Videos sub-tab on /downloads #}
+{% if rows|length == 0 %}
+  <div class="text-xs text-center py-8" style="color:#8b949e;">
+    No videos in catalog for <strong>{{ channel.name }}</strong> yet.<br/>
+    Go to <a href="/sources" style="color:#58a6ff;">Sources</a> and run a scan to populate it.
+  </div>
+{% else %}
+  <div class="text-xs mb-2" style="color:#8b949e;">
+    Showing <strong style="color:#e6edf3;">{{ rows|length }}</strong>
+    of <strong style="color:#e6edf3;">{{ total }}</strong> videos
+    &middot; order: <strong style="color:#e6edf3;">{{ order }}</strong>
+    &middot; page <strong style="color:#e6edf3;">{{ page }}</strong>
+  </div>
+
+  <div class="overflow-x-auto rounded-md border" style="border-color:#21262d;">
+    <table class="w-full text-xs" style="color:#c9d1d9;">
+      <thead style="background:#161b22;color:#8b949e;">
+        <tr>
+          <th class="text-left px-2 py-2 font-medium" style="width:90px;">Thumb</th>
+          <th class="text-left px-2 py-2 font-medium">Title</th>
+          <th class="text-left px-2 py-2 font-medium" style="width:90px;">Date</th>
+          <th class="text-right px-2 py-2 font-medium" style="width:60px;">Dur</th>
+          <th class="text-right px-2 py-2 font-medium" style="width:80px;">Views</th>
+          <th class="text-center px-2 py-2 font-medium" style="width:100px;">History</th>
+          <th class="text-center px-2 py-2 font-medium" style="width:120px;">Status</th>
+          <th class="text-right px-2 py-2 font-medium" style="width:120px;">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+          {% set ledger_status = r.dlq_status %}
+          {% set is_failed = (ledger_status == 'failed') or (r.failed_dlq_id is not none) %}
+          <tr style="border-top:1px solid #21262d; {% if r.has_history %}background:rgba(56,139,253,0.08);{% endif %}">
+            <td class="px-2 py-1.5">
+              {% if r.thumbnail_url %}
+                <img src="{{ r.thumbnail_url }}" alt=""
+                     style="width:80px;height:45px;object-fit:cover;border-radius:3px;display:block;" />
+              {% else %}
+                <div style="width:80px;height:45px;background:#0d1117;border-radius:3px;"></div>
+              {% endif %}
+            </td>
+            <td class="px-2 py-1.5">
+              <a href="https://youtube.com/watch?v={{ r.video_id }}" target="_blank"
+                 style="color:#e6edf3;text-decoration:none;font-weight:500;">
+                {{ r.title or r.video_id }}
+              </a>
+              <div style="color:#6e7681;font-size:10px;font-family:monospace;">{{ r.video_id }}</div>
+            </td>
+            <td class="px-2 py-1.5" style="color:#8b949e;">{{ r.upload_date or '—' }}</td>
+            <td class="px-2 py-1.5 text-right" style="color:#8b949e;">
+              {{ format_duration(r.duration_sec) if r.duration_sec else '—' }}
+            </td>
+            <td class="px-2 py-1.5 text-right" style="color:#8b949e;">
+              {{ format_views(r.view_count) if r.view_count else '—' }}
+            </td>
+            <td class="px-2 py-1.5 text-center">
+              {% if r.has_history %}
+                <div style="display:flex;justify-content:center;align-items:center;gap:4px;">
+                  <input id="force-{{ r.video_id }}" type="checkbox"
+                         onchange="downloadsToggleForce('{{ r.video_id }}', this)"
+                         style="accent-color:#58a6ff;" />
+                  <label for="force-{{ r.video_id }}" style="font-size:10px;color:#8b949e;">
+                    Force
+                  </label>
+                </div>
+              {% else %}
+                <span style="color:#6e7681;">—</span>
+              {% endif %}
+            </td>
+            <td class="px-2 py-1.5 text-center">
+              {% if r.upload_status == 'uploaded' %}
+                <span style="color:#3fb950;font-weight:600;">✓ uploaded</span>
+              {% elif r.upload_status == 'uploading' %}
+                <span style="color:#a371f7;">⟳ uploading</span>
+              {% elif r.upload_status == 'queued' %}
+                <span style="color:#58a6ff;">queued</span>
+              {% elif r.is_downloaded %}
+                <span style="color:#3fb950;font-weight:600;">✓ downloaded</span>
+              {% elif is_failed %}
+                <span style="color:#f85149;">✗ failed</span>
+              {% elif ledger_status == 'downloading' %}
+                <span style="color:#a371f7;">⟳ downloading</span>
+              {% elif ledger_status == 'pending' or ledger_status == 'hydrated' %}
+                <span style="color:#58a6ff;">queued</span>
+              {% elif ledger_status == 'complete' %}
+                <span style="color:#3fb950;">complete</span>
+              {% else %}
+                <span style="color:#6e7681;">—</span>
+              {% endif %}
+            </td>
+            <td class="px-2 py-1.5 text-right">
+              {% if r.is_downloaded %}
+                <span id="dl-row-{{ r.video_id }}" style="color:#6e7681;font-size:11px;">—</span>
+              {% elif is_failed %}
+                <button class="dl-btn"
+                        style="background:#21262d;border:1px solid #f85149;color:#f85149;"
+                        hx-post="/downloads/retry-video/{{ channel.id }}/{{ r.video_id }}"
+                        hx-target="#dl-row-{{ r.video_id }}"
+                        hx-swap="innerHTML"
+                        title="Delete partials and re-queue">
+                  ↻ Retry
+                </button>
+                <span id="dl-row-{{ r.video_id }}"></span>
+              {% elif ledger_status in ('downloading','pending','hydrated','complete') %}
+                <span id="dl-row-{{ r.video_id }}" style="color:#6e7681;font-size:11px;">—</span>
+              {% else %}
+                <button id="queue-btn-{{ r.video_id }}"
+                        class="dl-btn dl-btn-primary{% if r.has_history %} opacity-60{% endif %}"
+                        {% if r.has_history %}disabled{% endif %}
+                        hx-post="/downloads/queue-video/{{ channel.id }}/{{ r.video_id }}{% if r.has_history %}?force=1{% endif %}"
+                        hx-target="#dl-row-{{ r.video_id }}"
+                        hx-swap="innerHTML">
+                  ↓ Download
+                </button>
+                {% if r.has_history %}
+                  <div style="color:#8b949e;font-size:10px;margin-top:4px;">History match requires Force</div>
+                {% endif %}
+                <span id="dl-row-{{ r.video_id }}"></span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    function downloadsToggleForce(videoId, checkbox) {
+      var button = document.getElementById('queue-btn-' + videoId);
+      if (!button) return;
+      button.disabled = !checkbox.checked;
+      if (button.disabled) {
+        button.classList.add('opacity-60');
+      } else {
+        button.classList.remove('opacity-60');
+      }
+    }
+  </script>
+
+  {# Pagination #}
+  {% if total > per_page %}
+    <div class="flex items-center justify-center gap-2 mt-3 text-xs">
+      {% if page > 1 %}
+        <button class="dl-btn"
+                hx-get="/partials/downloads/channel-videos?channel_id={{ channel.id }}&order={{ order }}&per_page={{ per_page }}&page={{ page - 1 }}"
+                hx-target="#downloads-channel-videos"
+                hx-swap="innerHTML">‹ Prev</button>
+      {% endif %}
+      <span style="color:#8b949e;">page {{ page }} of {{ ((total - 1) // per_page) + 1 }}</span>
+      {% if has_more %}
+        <button class="dl-btn"
+                hx-get="/partials/downloads/channel-videos?channel_id={{ channel.id }}&order={{ order }}&per_page={{ per_page }}&page={{ page + 1 }}"
+                hx-target="#downloads-channel-videos"
+                hx-swap="innerHTML">Next ›</button>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endif %}

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>project003 — Channel Manager</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0d1117; color: #c9d1d9; min-height: 100vh; }
+    header { background: #161b22; border-bottom: 1px solid #30363d; padding: 14px 32px; display: flex; align-items: center; gap: 10px; }
+    header h1 { font-size: 1.05rem; font-weight: 700; color: #f0f6fc; }
+    .pill { font-size: 0.68rem; font-weight: 600; padding: 2px 9px; border-radius: 20px; }
+    .pill-green  { background: #238636; color: #fff; }
+    .pill-yellow { background: #9e6a03; color: #fff; }
+    .pill-blue   { background: #1f6feb; color: #fff; }
+    .pill-gray   { background: #30363d; color: #8b949e; }
+    .container { max-width: 1080px; margin: 0 auto; padding: 32px 24px; }
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; margin-bottom: 28px; }
+    .card-header { padding: 16px 24px 12px; border-bottom: 1px solid #21262d; font-size: 0.85rem; font-weight: 600; color: #f0f6fc; }
+    .card-body { padding: 20px 24px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-group.span2 { grid-column: 1 / -1; }
+    label { font-size: 0.75rem; font-weight: 600; color: #8b949e; }
+    input[type="text"], input[type="number"], select { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; padding: 8px 12px; font-size: 0.875rem; outline: none; width: 100%; }
+    input:focus, select:focus { border-color: #58a6ff; }
+    input::placeholder { color: #484f58; }
+    .hint { font-size: 0.72rem; color: #484f58; margin-top: 3px; }
+    .hint.case1 { color: #388bfd; }
+    .hint.case2 { color: #d29922; }
+    .form-footer { padding-top: 16px; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; border-radius: 6px; border: none; font-size: 0.875rem; font-weight: 500; cursor: pointer; }
+    .btn-primary { background: #238636; color: #fff; }
+    .btn-sm { padding: 5px 12px; font-size: 0.78rem; }
+    .btn-outline { background: transparent; border: 1px solid #30363d; color: #8b949e; }
+    .btn-danger { background: transparent; border: 1px solid #f8514940; color: #f85149; }
+    .section-label { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: #484f58; margin-bottom: 10px; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th { text-align: left; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #484f58; padding: 8px 14px; border-bottom: 1px solid #21262d; }
+    tbody td { padding: 13px 14px; border-bottom: 1px solid #161b22; font-size: 0.875rem; vertical-align: middle; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: #1c2128; }
+    .ch-name { font-weight: 600; color: #f0f6fc; }
+    .ch-url { font-size: 0.78rem; }
+    .ch-url a { color: #58a6ff; text-decoration: none; }
+    .muted { color: #8b949e; }
+    .actions { display: flex; gap: 8px; }
+    .empty { text-align: center; padding: 56px 24px; color: #484f58; }
+    .empty p { font-size: 1rem; margin-bottom: 6px; color: #8b949e; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>project003</h1>
+  <span class="pill pill-green">Channel Manager</span>
+</header>
+<div class="container">
+
+  <div class="card">
+    <div class="card-header">Add / Update Channel</div>
+    <div class="card-body">
+      <form method="POST" action="/add">
+        <div class="form-grid">
+          <div class="form-group span2">
+            <label>YouTube Channel URL</label>
+            <input type="text" name="url" required placeholder="https://youtube.com/@ChannelName">
+          </div>
+          <div class="form-group">
+            <label>Channel Label</label>
+            <input type="text" name="name" required placeholder="e.g. MrBeast">
+          </div>
+          <div class="form-group">
+            <label>Max Videos Per Day</label>
+            <input type="number" name="daily_limit" value="10" min="1" max="500">
+          </div>
+          <div class="form-group span2">
+            <label>Fetch Mode</label>
+            <select name="mode" onchange="updateHint(this)">
+              <option value="monitor">Case 1 — Monitor: watch for new videos only (from now on)</option>
+              <option value="backfill">Case 2 — Backfill: download ALL existing videos first, then monitor</option>
+            </select>
+            <div id="mode-hint" class="hint case1">The watcher polls every 15 min and picks up any new uploads automatically.</div>
+          </div>
+        </div>
+        <div class="form-footer">
+          <button type="submit" class="btn btn-primary">Add Channel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="section-label">Channels ({{ channels | length }})</div>
+
+  {% if channels %}
+  <div class="card" style="padding:0; overflow:hidden;">
+    <table>
+      <thead>
+        <tr>
+          <th>Channel</th><th>Mode</th><th>Status</th><th>Videos Seen</th><th>Today</th><th>Last Check</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for key, ch in channels.items() %}
+        {% set seen_count  = ch.videos_seen | length %}
+        {% set queue_count = ch.backfill_queue | length %}
+        {% set is_backfill = not ch.backfill_complete %}
+        {% set is_active   = ch.auto_download %}
+        {% set last_chk    = ch.last_check[:16].replace('T', ' ') if ch.last_check else '—' %}
+        <tr>
+          <td>
+            <div class="ch-name">{{ ch.name }}</div>
+            <div class="ch-url"><a href="{{ ch.url }}" target="_blank">{{ ch.url }}</a></div>
+          </td>
+          <td>
+            {% if is_backfill %}
+              <span class="pill pill-yellow">BACKFILL</span>
+              {% if queue_count > 0 %}
+                <div class="muted" style="font-size:0.75rem; margin-top:4px;">{{ queue_count }} queued</div>
+              {% endif %}
+            {% else %}
+              <span class="pill pill-blue">MONITOR</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if is_active %}
+              <span class="pill pill-green">Active</span>
+            {% else %}
+              <span class="pill pill-gray">Paused</span>
+            {% endif %}
+          </td>
+          <td class="muted"><strong style="color:#c9d1d9">{{ seen_count }}</strong></td>
+          <td class="muted"><strong style="color:#c9d1d9">{{ ch.uploads_today }}</strong> / {{ ch.daily_upload_limit }}</td>
+          <td class="muted" style="font-size:0.8rem; white-space:nowrap;">{{ last_chk }}</td>
+          <td>
+            <div class="actions">
+              <form method="POST" action="/toggle/{{ key }}">
+                <button type="submit" class="btn btn-sm btn-outline">{{ 'Pause' if is_active else 'Resume' }}</button>
+              </form>
+              <form method="POST" action="/delete/{{ key }}" onsubmit="return confirm('Remove {{ ch.name }}?')">
+                <button type="submit" class="btn btn-sm btn-danger">Remove</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card empty">
+    <p>No channels configured yet</p>
+    <small>Add a channel above to start monitoring or backfilling</small>
+  </div>
+  {% endif %}
+
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+    <div class="section-label" style="margin-bottom:0;">Watcher Logs — live</div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span id="log-status" style="font-size:0.72rem; color:#484f58;">polling…</span>
+      <label style="font-size:0.72rem; color:#8b949e; display:flex; align-items:center; gap:5px; cursor:pointer;">
+        <input type="checkbox" id="autoscroll" checked> auto-scroll
+      </label>
+      <button onclick="fetchLogs()" class="btn btn-sm btn-outline">Refresh</button>
+    </div>
+  </div>
+  <div class="card" style="padding:0; overflow:hidden;">
+    <pre id="log-output" style="background:#010409; color:#7ee787; font-size:0.75rem; font-family:'Cascadia Code','Fira Mono','Consolas',monospace; padding:16px 20px; margin:0; max-height:420px; overflow-y:auto; white-space:pre-wrap; word-break:break-word; border-radius:8px; line-height:1.55;">Loading…</pre>
+  </div>
+
+</div>
+<script>
+  function updateHint(sel) {
+    const hints = {
+      monitor:  { cls: 'case1', text: 'The watcher polls every 15 min and picks up any new uploads automatically.' },
+      backfill: { cls: 'case2', text: 'All existing videos will be downloaded and uploaded first (oldest to newest), then switches to monitor mode.' }
+    };
+    const h = hints[sel.value];
+    const el = document.getElementById('mode-hint');
+    el.className = 'hint ' + h.cls;
+    el.textContent = h.text;
+  }
+  function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function colourLine(line) {
+    if (line.includes('[BACKFILL]'))                               return '<span style="color:#d29922">'  + esc(line) + '</span>';
+    if (line.includes('[MONITOR]'))                                return '<span style="color:#58a6ff">'  + esc(line) + '</span>';
+    if (line.includes('ERROR') || line.includes('failed'))         return '<span style="color:#f85149">'  + esc(line) + '</span>';
+    if (line.includes('Webhook') || line.includes('HTTP 200'))     return '<span style="color:#3fb950">'  + esc(line) + '</span>';
+    if (line.includes('Downloading'))                              return '<span style="color:#79c0ff">'  + esc(line) + '</span>';
+    if (line.includes('WARNING'))                                  return '<span style="color:#e3b341">'  + esc(line) + '</span>';
+    return '<span style="color:#7ee787">' + esc(line) + '</span>';
+  }
+  function fetchLogs() {
+    fetch('/api/logs?tail=120')
+      .then(r => r.json())
+      .then(data => {
+        const el = document.getElementById('log-output');
+        el.innerHTML = data.lines.length ? data.lines.map(colourLine).join('\n') : '<span style="color:#484f58">No logs yet.</span>';
+        if (document.getElementById('autoscroll').checked) el.scrollTop = el.scrollHeight;
+        document.getElementById('log-status').textContent = 'updated ' + new Date().toLocaleTimeString();
+      })
+      .catch(() => { document.getElementById('log-status').textContent = 'fetch failed'; });
+  }
+  fetchLogs();
+  setInterval(fetchLogs, 4000);
+</script>
+</body>
+</html>

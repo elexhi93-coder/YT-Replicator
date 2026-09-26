@@ -1,0 +1,153 @@
+{
+  "name": "project003 — YouTube Only",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## ✅ After Import — 3 Steps Only\n\n**1. YouTube Upload node** → click it → Credential → create/select your **YouTube OAuth2** credential → authorise with the @manhuanova-recap Google account.\n\n**2. AI: Enrich Metadata node** *(optional — workflow works without it)*\n→ click it → Credential → select your **OpenRouter Header Auth** credential.\n\n**3. Activate** → toggle top-right → Publish → Active (green).\n\n---\n📂 Videos are read from `/shared/downloads/` inside the n8n container.\n🔗 Webhook path: `POST /webhook/idm-yt-download`\n⚠️ Delete any other workflow that uses the same webhook path first.",
+        "height": 290,
+        "width": 520,
+        "color": 4
+      },
+      "id": "sticky-setup",
+      "name": "Setup Instructions",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [240, -80]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "idm-yt-download",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook: IDM-YT Download",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "idm-yt-download"
+    },
+    {
+      "parameters": {
+        "jsCode": "const fs = require('fs');\nconst path = require('path');\nconst raw = $input.first().json;\nconst body = raw.body && typeof raw.body === 'object' ? raw.body : raw;\nif (!body.file_path) { throw new Error('No file_path in payload. Got keys: ' + Object.keys(raw).join(',')); }\nif (!body.title)     { throw new Error('No title in payload'); }\n// Normalize separators and translate watcher path -> n8n mount.\nlet filePath = body.file_path.replace(/\\\\/g, '/');\nif (filePath.startsWith('/downloads/')) {\n  filePath = '/shared/downloads/' + filePath.slice('/downloads/'.length);\n}\n// If we got pointed at a subtitle/info/thumb file, find the merged .mp4 in the same dir.\nconst lower = filePath.toLowerCase();\nif (!lower.endsWith('.mp4')) {\n  const dir = path.dirname(filePath);\n  try {\n    const files = fs.readdirSync(dir);\n    const mp4s = files.filter(f => f.toLowerCase().endsWith('.mp4') && !/\\.f\\d+\\.mp4$/i.test(f));\n    if (mp4s.length === 0) throw new Error('No .mp4 found in ' + dir + ' (saw: ' + files.join(', ') + ')');\n    filePath = path.join(dir, mp4s[0]).replace(/\\\\/g, '/');\n  } catch (e) {\n    throw new Error('Cannot list dir ' + dir + ': ' + e.message);\n  }\n}\n// Sanity check\nif (!fs.existsSync(filePath)) throw new Error('Resolved file does not exist: ' + filePath);\nconst stat = fs.statSync(filePath);\nconsole.log('[project003] Resolved video: ' + filePath + ' (' + Math.round(stat.size/1024/1024) + ' MB)');\nreturn [{\n  json: {\n    job_id:         body.job_id         || null,\n    destination_id: body.destination_id || null,\n    pipeline_id:    body.pipeline_id    || null,\n    video_id:       body.video_id       || null,\n    title:        body.title        || 'Untitled Video',\n    file_path:    filePath,\n    file_size_mb: Math.round(stat.size/1024/1024),\n    source_url:   body.source_url   || '',\n    channel_name: body.channel_name || '',\n    channel_id:   body.channel_id   || '',\n    channel_url:  body.channel_url  || '',\n    duration:     body.duration     || 0,\n    timestamp:    body.timestamp    || new Date().toISOString(),\n    description:  `Downloaded from ${body.channel_name || 'YouTube'}.\\nSource: ${body.source_url || ''}`,\n  }\n}];"
+      },
+      "id": "prepare-data",
+      "name": "Prepare Video Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "HTTP-Referer", "value": "https://github.com/project003" },
+            { "name": "X-Title", "value": "project003 Channel Replicator" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'mistralai/mistral-7b-instruct:free', messages: [{ role: 'system', content: 'You are a YouTube SEO expert. Return ONLY a raw JSON object (no markdown) with keys: youtube_title (string, max 100 chars), youtube_description (string, 150-300 chars), youtube_tags (array of 10-15 strings).' }, { role: 'user', content: 'Title: ' + $json.title + '\\nChannel: ' + $json.channel_name }], temperature: 0.7, max_tokens: 600 }) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "node-ai-enrich",
+      "name": "AI: Enrich Metadata",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300],
+      "continueOnFail": true,
+      "notes": "Uses OpenRouter free Mistral model. continueOnFail=true so upload still works if AI is unavailable."
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('Prepare Video Data').first().json;\nlet aiData = null;\ntry {\n  const aiResponse = $('AI: Enrich Metadata').first().json;\n  const content = aiResponse?.choices?.[0]?.message?.content;\n  if (content) {\n    const cleaned = content.replace(/```json/gi, '').replace(/```/g, '').trim();\n    aiData = JSON.parse(cleaned);\n  }\n} catch (e) { console.log('[project003] AI parse failed: ' + e.message); }\nconst result = {\n  job_id:         original.job_id,\n  destination_id: original.destination_id,\n  pipeline_id:    original.pipeline_id,\n  video_id:       original.video_id,\n  youtube_title:       (aiData?.youtube_title       || original.title).substring(0, 100),\n  youtube_description:  aiData?.youtube_description || original.description,\n  youtube_tags:         aiData?.youtube_tags        || [],\n  title:        original.title,\n  file_path:    original.file_path,\n  source_url:   original.source_url,\n  channel_name: original.channel_name,\n  ai_used:      !!aiData,\n};\nconsole.log('[project003] AI: ' + (aiData ? 'SUCCESS' : 'FALLBACK') + ' — ' + result.youtube_title);\nreturn [{ json: result }];"
+      },
+      "id": "node-ai-parse",
+      "name": "AI: Parse & Fallback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $json.file_path }}",
+        "options": {}
+      },
+      "id": "read-file",
+      "name": "Read Video File",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "title":       "={{ $('AI: Parse & Fallback').first().json.youtube_title }}",
+        "description": "={{ $('AI: Parse & Fallback').first().json.youtube_description }}",
+        "categoryId":  "1",
+        "privacyStatus": "unlisted",
+        "inputDataFieldName": "data",
+        "options": {
+          "tags": "={{ $('AI: Parse & Fallback').first().json.youtube_tags.join(',') }}"
+        }
+      },
+      "id": "youtube-upload",
+      "name": "YouTube Upload",
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [1340, 300],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const meta = $('AI: Parse & Fallback').first().json;\nlet ytResult = { status: 'skipped' };\ntry {\n  const ytData = $('YouTube Upload').first().json;\n  if (ytData && ytData.id) {\n    ytResult = { status: 'success', video_id: ytData.id, url: 'https://youtube.com/watch?v=' + ytData.id };\n  } else if (ytData && ytData.error) {\n    ytResult = { status: 'error', error: ytData.error.message || JSON.stringify(ytData.error) };\n  } else {\n    ytResult = { status: 'error', error: 'Unexpected response: ' + JSON.stringify(ytData) };\n  }\n} catch (e) {\n  ytResult = { status: 'error', error: e.message };\n}\nconst summary = {\n  job_id:         meta.job_id,\n  destination_id: meta.destination_id,\n  title:          meta.title,\n  ai_title:       meta.youtube_title,\n  ai_description: meta.youtube_description,\n  ai_tags:        meta.youtube_tags,\n  ai_used:        !!meta.ai_used,\n  youtube:        ytResult,\n};\nconst icon = ytResult.status === 'success' ? '[OK]' : '[FAIL]';\nconsole.log('[project003] ' + icon + ' ' + meta.title + ' -> YouTube: ' + ytResult.status);\nif (ytResult.url) console.log('[project003] Published: ' + ytResult.url);\nreturn [{ json: summary }];"
+      },
+      "id": "log-results",
+      "name": "Log Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://dashboard:8080/api/callback",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  job_id:         $json.job_id,\n  destination_id: $json.destination_id,\n  status:         $json.youtube.status === 'success' ? 'uploaded' : 'failed',\n  platform:       'youtube',\n  upload_url:     $json.youtube.url || '',\n  error_message:  $json.youtube.error || '',\n  ai_used:        $json.ai_used,\n  ai_title:       $json.ai_title,\n  ai_description: $json.ai_description,\n  ai_tags:        $json.ai_tags\n}) }}",
+        "options": { "timeout": 5000 }
+      },
+      "id": "notify-dashboard",
+      "name": "Notify Dashboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1780, 300],
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "Webhook: IDM-YT Download": { "main": [[{ "node": "Prepare Video Data", "type": "main", "index": 0 }]] },
+    "Prepare Video Data":       { "main": [[{ "node": "AI: Enrich Metadata", "type": "main", "index": 0 }]] },
+    "AI: Enrich Metadata":      { "main": [[{ "node": "AI: Parse & Fallback", "type": "main", "index": 0 }]] },
+    "AI: Parse & Fallback":     { "main": [[{ "node": "Read Video File", "type": "main", "index": 0 }]] },
+    "Read Video File":          { "main": [[{ "node": "YouTube Upload", "type": "main", "index": 0 }]] },
+    "YouTube Upload":           { "main": [[{ "node": "Log Results", "type": "main", "index": 0 }]] },
+    "Log Results":              { "main": [[{ "node": "Notify Dashboard", "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": ["channel-replicator", "youtube-only"],
+  "pinData": {}
+}

@@ -1,0 +1,129 @@
+{
+  "name": "project003 — Channel Manager",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Add / Update YouTube Channel",
+        "formDescription": "Add a channel to monitor. The watcher picks up changes on its next poll cycle.",
+        "responseMode": "onReceived",
+        "responseData": "noData",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "YouTube Channel URL",
+              "fieldType": "text",
+              "requiredField": true,
+              "placeholder": "https://youtube.com/@ChannelName  or  https://youtube.com/channel/UCxxxx"
+            },
+            {
+              "fieldLabel": "Channel Name (label)",
+              "fieldType": "text",
+              "requiredField": true,
+              "placeholder": "MrBeast"
+            },
+            {
+              "fieldLabel": "Max Videos Per Day",
+              "fieldType": "number",
+              "requiredField": false,
+              "placeholder": "10"
+            },
+            {
+              "fieldLabel": "Download Full History (Backfill)",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  { "option": "No — only new videos from now on" },
+                  { "option": "Yes — download all past videos first" }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-0001-0001-aabbccddeeff",
+      "name": "Form: Add Channel",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "channel-manager-form-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Parse form inputs ──────────────────────────────────────────\nconst raw_url   = $input.first().json['YouTube Channel URL'] || '';\nconst name      = ($input.first().json['Channel Name (label)'] || '').trim();\nconst limit_raw = $input.first().json['Max Videos Per Day'];\nconst backfill_str = $input.first().json['Download Full History (Backfill)'] || '';\n\nconst daily_limit   = parseInt(limit_raw, 10) || 10;\nconst do_backfill   = backfill_str.toLowerCase().includes('yes');\nconst url           = raw_url.trim();\n\nif (!url || !name) {\n  throw new Error('Channel URL and Channel Name are required.');\n}\n\n// ── Extract channel key from URL ────────────────────────────────\n// Priority: /channel/UCxxxxx > @handle > full URL as fallback\nlet channel_key = url;\n\nconst uc_match = url.match(/\\/channel\\/(UC[\\w-]{10,})/);\nif (uc_match) {\n  channel_key = uc_match[1];\n} else {\n  const handle_match = url.match(/\\/@([^/?#]+)/);\n  if (handle_match) {\n    channel_key = handle_match[1];  // e.g. \"MrBeast\"\n  }\n}\n\n// ── Build the channel entry ──────────────────────────────────────\nconst today = new Date().toISOString().split('T')[0];\nconst entry = {\n  name:                name,\n  url:                 url,\n  auto_download:       true,\n  daily_upload_limit:  daily_limit,\n  backfill_complete:   !do_backfill,\n  backfill_queue:      [],\n  backfill_entry_map:  {},\n  uploads_today:       0,\n  uploads_today_date:  today,\n  videos_seen:         [],\n  last_check:          new Date(0).toISOString()\n};\n\nreturn [{ json: { channel_key, entry, name, url, daily_limit, do_backfill } }];"
+      },
+      "id": "a1b2c3d4-0002-0002-0002-aabbccddeeff",
+      "name": "Parse & Build Entry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "/data/channel_monitor_config.json",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0003-0003-0003-aabbccddeeff",
+      "name": "Read Config File",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [520, 0],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const parsed = $('Parse & Build Entry').first().json;\nlet config = { channels: {} };\n\ntry {\n  const fileItem = $('Read Config File').first();\n  if (fileItem.binary && fileItem.binary.data) {\n    const text = Buffer.from(fileItem.binary.data.data, 'base64').toString('utf-8');\n    config = JSON.parse(text.trim());\n  }\n} catch(e) {\n  config = { channels: {} };\n}\nif (!config.channels) config.channels = {};\n\nconst key   = parsed.channel_key;\nconst entry = parsed.entry;\n\nif (config.channels[key]) {\n  entry.videos_seen        = config.channels[key].videos_seen || [];\n  entry.uploads_today      = config.channels[key].uploads_today || 0;\n  entry.uploads_today_date = config.channels[key].uploads_today_date || entry.uploads_today_date;\n  if (!parsed.do_backfill) {\n    entry.backfill_complete  = config.channels[key].backfill_complete;\n    entry.backfill_queue     = config.channels[key].backfill_queue || [];\n    entry.backfill_entry_map = config.channels[key].backfill_entry_map || {};\n  }\n}\n\nconfig.channels[key] = entry;\n\nconst jsonStr = JSON.stringify(config, null, 2);\nconst mode    = parsed.do_backfill ? 'BACKFILL (full history)' : 'MONITOR only';\nconst message = 'Channel \"' + parsed.name + '\" added!\\nKey: ' + key + '\\nMode: ' + mode + '\\nDaily limit: ' + parsed.daily_limit + ' videos/day\\nThe watcher will pick this up on its next poll cycle.';\n\nreturn [{\n  json: { message, channel_key: key, name: parsed.name },\n  binary: {\n    data: {\n      data:     Buffer.from(jsonStr).toString('base64'),\n      mimeType: 'application/json',\n      fileName: 'channel_monitor_config.json'\n    }\n  }\n}];"
+      },
+      "id": "a1b2c3d4-0004-0004-0004-aabbccddeeff",
+      "name": "Merge Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [780, 0]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/data/channel_monitor_config.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0005-0005-0005-aabbccddeeff",
+      "name": "Write Config File",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [1040, 0]
+    },
+  ],
+  "connections": {
+    "Form: Add Channel": {
+      "main": [
+        [{ "node": "Parse & Build Entry", "type": "main", "index": 0 }]
+      ]
+    },
+    "Parse & Build Entry": {
+      "main": [
+        [{ "node": "Read Config File", "type": "main", "index": 0 }]
+      ]
+    },
+    "Read Config File": {
+      "main": [
+        [{ "node": "Merge Config", "type": "main", "index": 0 }]
+      ]
+    },
+    "Merge Config": {
+      "main": [
+        [{ "node": "Write Config File", "type": "main", "index": 0 }]
+      ]
+    },
+    "Write Config File": {
+      "main": [[]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": ["channel-manager", "project003"]
+}

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ source.name }} — Catalog — project003{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-2">
+  <div>
+    <a href="/sources" class="text-xs hover:underline" style="color: #58a6ff;">← Sources</a>
+    <h1 class="text-2xl font-bold text-white mt-1">{{ source.name }}</h1>
+    <div class="text-xs mt-1" style="color: var(--text-muted);">
+      <span class="font-mono">{{ source.kind }}</span> ·
+      <a href="{{ source.url }}" target="_blank" rel="noopener"
+         class="hover:underline" style="color: #58a6ff;">{{ source.url }}</a>
+    </div>
+  </div>
+  <button class="px-3 py-1.5 text-sm rounded font-medium"
+          style="background: #1f6feb; color: white;"
+          hx-post="/partials/sources/{{ source.id }}/scan"
+          hx-target="#catalog-panel"
+          hx-swap="innerHTML"
+          hx-vals='{"refresh": "1"}'>
+    Re-scan
+  </button>
+</div>
+
+<div id="catalog-panel"
+     hx-get="/partials/sources/{{ source.id }}/catalog"
+     hx-trigger="load"
+     hx-swap="innerHTML">
+  <div class="text-sm italic mt-6" style="color: var(--text-muted);">Loading catalog…</div>
+</div>
+{% endblock %}

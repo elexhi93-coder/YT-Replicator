@@ -1,0 +1,140 @@
+{# download_queue widget. Expects: dlq = {counts, total, recent}. #}
+{% set status_color = {
+  'pending':     '#8b949e',
+  'hydrated':    '#58a6ff',
+  'downloading': '#a371f7',
+  'complete':    '#3fb950',
+  'failed':      '#f85149',
+  'cancelled':   '#6e7681',
+} %}
+
+<div id="download-queue-widget"
+     class="rounded-md border p-4 mb-6"
+     style="background: #161b22; border-color: #30363d;"
+     hx-get="/partials/queue/download-queue"
+     hx-trigger="every 10s"
+     hx-swap="outerHTML">
+  <div class="flex items-center justify-between mb-3">
+    <div>
+      <div class="text-sm font-semibold uppercase tracking-wide" style="color: #8b949e;">
+        Download queue
+      </div>
+      <div class="text-xs mt-1" style="color: #8b949e;">
+        One row per video — populated when the router enqueues work.
+        Decoupled from <code>upload_ledger</code> so multi-destination fan-out
+        downloads only once.
+      </div>
+    </div>
+    <button hx-get="/partials/queue/download-queue"
+            hx-target="#download-queue-widget" hx-swap="outerHTML"
+            class="text-xs px-2 py-1 rounded"
+            style="background: #21262d; color: #c9d1d9; border: 1px solid #30363d;">
+      ↻ Refresh
+    </button>
+  </div>
+
+  {# Last-hydration flash banner. #}
+  {% if last_hydrate is defined %}
+    {% set flash_color = '#3fb950' if last_hydrate.errors == 0 else '#d29922' %}
+    <div class="text-xs mb-3 px-3 py-2 rounded"
+         style="background: rgba(255,255,255,0.04); border-left: 3px solid {{ flash_color }}; color: #c9d1d9;">
+      Hydrated <strong>{{ last_hydrate.hydrated }}</strong> /
+      considered {{ last_hydrate.considered }};
+      errors: {{ last_hydrate.errors }}.
+      {% if last_hydrate.error_rows %}
+        <details class="mt-1">
+          <summary style="cursor: pointer; color: #d29922;">Show error reasons</summary>
+          <ul class="mt-1 ml-4 list-disc">
+            {% for er in last_hydrate.error_rows %}
+              <li>dlq #{{ er.dlq_id }}: <code>{{ er.reason }}</code></li>
+            {% endfor %}
+          </ul>
+        </details>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {# Hydrate-pending control row. #}
+  {% if dlq.counts.get('pending', 0) %}
+    <form hx-post="/partials/queue/download-queue/hydrate"
+          hx-target="#download-queue-widget" hx-swap="outerHTML"
+          class="flex items-center gap-2 mb-3">
+      <span class="text-xs" style="color: #8b949e;">
+        {{ dlq.counts.pending }} pending — materialize jobs in batches:
+      </span>
+      <input type="number" name="limit" value="10" min="1" max="500"
+             class="w-20 px-2 py-1 rounded text-xs"
+             style="background: #0d1117; color: #c9d1d9; border: 1px solid #30363d;" />
+      <button type="submit"
+              class="text-xs px-3 py-1 rounded font-medium"
+              style="background: #1f6feb; color: #ffffff; border: 1px solid #1f6feb;">
+        ▶ Hydrate
+      </button>
+    </form>
+  {% endif %}
+
+  {# Status pill row #}
+  <div class="flex flex-wrap items-center gap-2 mb-3">
+    <span class="text-xs" style="color: #8b949e;">Total: <strong style="color: #c9d1d9;">{{ dlq.total }}</strong></span>
+    {% for s in ['pending','hydrated','downloading','complete','failed','cancelled'] %}
+      {% set n = dlq.counts.get(s, 0) %}
+      {% if n %}
+        <span class="px-2 py-0.5 rounded text-xs font-medium"
+              style="background: rgba(255,255,255,0.04);
+                     color: {{ status_color[s] }};
+                     border: 1px solid {{ status_color[s] }};">
+          {{ s }}: {{ n }}
+        </span>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  {% if not dlq.recent %}
+    <div class="text-sm py-2 italic" style="color: #8b949e;">
+      Queue is empty. Run a routing rule to populate it.
+    </div>
+  {% else %}
+    <table class="w-full text-sm">
+      <thead style="color: #8b949e;">
+        <tr>
+          <th class="text-left px-2 py-1 font-medium">When</th>
+          <th class="text-left px-2 py-1 font-medium">Video</th>
+          <th class="text-left px-2 py-1 font-medium">Source</th>
+          <th class="text-left px-2 py-1 font-medium">Status</th>
+          <th class="text-left px-2 py-1 font-medium">Trigger</th>
+          <th class="text-left px-2 py-1 font-medium">Job</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in dlq.recent %}
+          {% set sc = status_color.get(row.status, '#8b949e') %}
+          <tr style="border-top: 1px solid #30363d;">
+            <td class="px-2 py-1 font-mono text-xs" style="color: #8b949e;">
+              {{ (row.updated_at or row.created_at or '')[5:16] }}
+            </td>
+            <td class="px-2 py-1" style="color: #c9d1d9;">
+              <div class="text-xs font-mono" style="color: #8b949e;">{{ row.video_id }}</div>
+              <div class="truncate" style="max-width: 320px;" title="{{ row.title }}">{{ row.title }}</div>
+              {% if row.error_message %}
+                <div class="text-xs mt-0.5" style="color: #f85149;" title="{{ row.error_message }}">
+                  {{ row.error_message[:80] }}{% if row.error_message|length > 80 %}…{% endif %}
+                </div>
+              {% endif %}
+            </td>
+            <td class="px-2 py-1" style="color: #c9d1d9;">{{ row.source_label }}</td>
+            <td class="px-2 py-1">
+              <span class="px-2 py-0.5 rounded text-xs font-medium"
+                    style="background: rgba(255,255,255,0.04); color: {{ sc }}; border: 1px solid {{ sc }};">
+                {{ row.status }}
+              </span>
+            </td>
+            <td class="px-2 py-1 text-xs" style="color: #8b949e;">{{ row.triggered_by }}</td>
+            <td class="px-2 py-1 text-xs font-mono" style="color: #8b949e;">
+              {% if row.job_id %}#{{ row.job_id }}{% else %}—{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</div>

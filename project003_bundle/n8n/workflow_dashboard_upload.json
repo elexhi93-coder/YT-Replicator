@@ -1,0 +1,109 @@
+{
+  "id": "p003-dashboard-upload",
+  "name": "project003 — YouTube via Dashboard (live progress)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## ✅ Setup Notes\n\n**This workflow hands the upload off to the dashboard** so you get live byte-level progress in the UI.\n\n**1. Connect YouTube** (one time)\n→ Open `http://localhost:8080/oauth/youtube/start` and authorize.\n\n**2. (Optional) AI: Enrich Metadata** → set OpenRouter Header Auth credential.\n\n**3. Activate** the workflow (top-right toggle).\n\n---\n🔗 Webhook path: `POST /webhook/idm-yt-download`\n📦 Hands off to: `http://dashboard:8080/api/upload/youtube`\n📊 Live progress at: `http://localhost:8080/queue`\n⚠️ Delete other workflows using the same webhook path first.",
+        "height": 300,
+        "width": 540,
+        "color": 4
+      },
+      "id": "sticky-setup",
+      "name": "Setup Instructions",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [220, -100]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "idm-yt-download",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook: IDM-YT Download",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "idm-yt-download"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize the watcher payload into a flat object for downstream nodes.\nconst raw = $input.first().json;\nconst body = raw.body && typeof raw.body === 'object' ? raw.body : raw;\nif (!body.file_path) throw new Error('No file_path in payload. Got: ' + Object.keys(raw).join(','));\nif (!body.title)     throw new Error('No title in payload');\n//\n// === AI CONFIG (edit here, in n8n UI) ===\n// AI runs by default. Set body.ai_enabled=false in the payload to skip it.\n// Payload may override ai_model / ai_system_prompt / ai_user_template per-destination.\n//\nconst DEFAULT_AI_MODEL    = 'openrouter/auto';\nconst DEFAULT_AI_SYSTEM   = `You are a YouTube SEO expert rewriting metadata for a manhwa/manhua recap channel.\n\nReturn ONLY a raw JSON object (no markdown, no code fences) with these keys:\n- youtube_title:       string, max 100 chars. Clickbait but accurate. Same language as the original. Strip any source-channel branding from the original title.\n- youtube_description: string, 150-400 chars. Hook in line 1, 2-3 sentences of intrigue, no spoilers of the ending.\n- youtube_tags:        array of 10-15 short lowercase strings (e.g. \"manhwa recap\", \"sss rank\", \"awakening\").`;\nconst DEFAULT_AI_USER_TEMPLATE = `Original title: {title}\nSource channel: {channel_name}\nDestination channel: {destination_channel}\nDuration (seconds): {duration}\nOriginal description: {description}\n\nRewrite for our destination channel.`;\nconst aiEnabled  = body.ai_enabled !== false && body.ai_enabled !== 0;\nconst aiModel    = (body.ai_model || '').trim() || DEFAULT_AI_MODEL;\nconst aiSystem   = (body.ai_system_prompt || '').trim() || DEFAULT_AI_SYSTEM;\nconst aiTemplate = (body.ai_user_template || '').trim() || DEFAULT_AI_USER_TEMPLATE;\n// Render placeholders in the user template.\nconst tags = Array.isArray(body.tags) ? body.tags.join(', ') : '';\nconst destLabel = body.destination_label || '';\nconst destPlatform = body.destination_platform || '';\nconst replaceAll = (str) => str\n  .replace(/\\{title\\}/g,                body.title || '')\n  .replace(/\\{channel_name\\}/g,         body.channel_name || '')\n  .replace(/\\{description\\}/g,          body.description || '')\n  .replace(/\\{tags\\}/g,                 tags)\n  .replace(/\\{duration\\}/g,             String(body.duration || 0))\n  .replace(/\\{source_url\\}/g,           body.source_url || '')\n  .replace(/\\{destination_label\\}/g,    destLabel)\n  .replace(/\\{destination_channel\\}/g,  destLabel)\n  .replace(/\\{destination_platform\\}/g, destPlatform);\nconst aiUser   = replaceAll(aiTemplate);\nconst aiSystemRendered = replaceAll(aiSystem);\nreturn [{\n  json: {\n    job_id:         body.job_id         ?? null,\n    destination_id: body.destination_id ?? null,\n    pipeline_id:    body.pipeline_id    ?? null,\n    video_id:       body.video_id       ?? null,\n    title:          body.title          || 'Untitled Video',\n    file_path:      String(body.file_path).replace(/\\\\/g, '/'),\n    source_url:     body.source_url     || '',\n    channel_name:   body.channel_name   || '',\n    channel_id:     body.channel_id     || '',\n    duration:       body.duration       || 0,\n    description:    `Downloaded from ${body.channel_name || 'YouTube'}.\\nSource: ${body.source_url || ''}`,\n    privacy_status: body.default_privacy || 'unlisted',\n    destination_label:    destLabel,\n    destination_platform: destPlatform,\n    ai_enabled:     aiEnabled,\n    ai_model:       aiModel,\n    ai_system:      aiSystemRendered,\n    ai_user:        aiUser,\n  }\n}];"
+      },
+      "id": "prepare-data",
+      "name": "Prepare Video Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "HTTP-Referer", "value": "https://github.com/project003" },
+            { "name": "X-Title", "value": "project003 Channel Replicator" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $json.ai_model, messages: [{ role: 'system', content: $json.ai_system }, { role: 'user', content: $json.ai_user }], temperature: 0.7, max_tokens: 800 }) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "node-ai-enrich",
+      "name": "AI: Enrich Metadata",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300],
+      "continueOnFail": true,
+      "notes": "Uses ai_model / ai_system / ai_user from the payload, set per-destination in the dashboard. continueOnFail=true so upload still works without AI."
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('Prepare Video Data').first().json;\nlet aiData = null;\n// Only consume the AI response when the destination opted in.\nif (original.ai_enabled) {\n  try {\n    const aiResponse = $('AI: Enrich Metadata').first().json;\n    const content = aiResponse?.choices?.[0]?.message?.content;\n    if (content) {\n      const cleaned = content.replace(/```json/gi, '').replace(/```/g, '').trim();\n      aiData = JSON.parse(cleaned);\n    }\n  } catch (e) { console.log('[project003] AI parse failed: ' + e.message); }\n}\nreturn [{ json: {\n  job_id:         original.job_id,\n  destination_id: original.destination_id,\n  pipeline_id:    original.pipeline_id,\n  video_id:       original.video_id,\n  file_path:      original.file_path,\n  title:          (aiData?.youtube_title       || original.title).substring(0, 100),\n  description:    (aiData?.youtube_description || original.description).substring(0, 4900),\n  tags:           aiData?.youtube_tags        || [],\n  category_id:    '22',\n  privacy_status: original.privacy_status || 'unlisted',\n  ai_used:        !!aiData,\n  ai_title:       aiData?.youtube_title       || '',\n  ai_description: aiData?.youtube_description || '',\n  ai_tags:        aiData?.youtube_tags        || [],\n} }];"
+      },
+      "id": "node-ai-parse",
+      "name": "AI: Parse & Fallback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://dashboard:8080/api/upload/youtube",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "handoff-dashboard",
+      "name": "Hand off → Dashboard upload",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 300],
+      "notes": "Dashboard does the resumable upload in the background and reports progress via SSE."
+    }
+  ],
+  "connections": {
+    "Webhook: IDM-YT Download": { "main": [[{ "node": "Prepare Video Data", "type": "main", "index": 0 }]] },
+    "Prepare Video Data":       { "main": [[{ "node": "AI: Enrich Metadata", "type": "main", "index": 0 }]] },
+    "AI: Enrich Metadata":      { "main": [[{ "node": "AI: Parse & Fallback", "type": "main", "index": 0 }]] },
+    "AI: Parse & Fallback":     { "main": [[{ "node": "Hand off → Dashboard upload", "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [],
+  "pinData": {}
+}

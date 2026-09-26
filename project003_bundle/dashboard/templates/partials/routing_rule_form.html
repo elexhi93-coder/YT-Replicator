@@ -1,0 +1,108 @@
+{# Rule create/edit form. `rule` may be a row (edit) or None (new). source_id and destination_id always set in form. #}
+{% set is_edit = rule is not none %}
+<form
+  {% if is_edit %}
+    hx-post="/partials/routing/rules/{{ rule.id }}"
+  {% else %}
+    hx-post="/partials/routing/rules"
+  {% endif %}
+  hx-target="#rule-panel" hx-swap="innerHTML"
+  class="rounded p-3 space-y-3"
+  style="background: var(--surface-2); border: 1px solid var(--border);">
+
+  <div class="flex items-center justify-between">
+    <div class="text-sm font-semibold" style="color: var(--text);">
+      {% if is_edit %}Edit rule #{{ rule.id }}{% else %}New rule{% endif %}
+    </div>
+    <button type="button" onclick="document.getElementById('rule-form-slot').innerHTML=''"
+            class="text-xs px-2 py-0.5 rounded" style="color: var(--text-muted);">cancel</button>
+  </div>
+
+  <input type="hidden" name="source_id" value="{{ (rule.source_id if is_edit else source_id) or 0 }}">
+  <input type="hidden" name="destination_id" value="{{ (rule.destination_id if is_edit else destination_id) or 0 }}">
+
+  <div class="grid grid-cols-2 gap-3">
+    <label class="text-xs" style="color: var(--text-muted);">Label
+      <input type="text" name="label" value="{{ rule.label if is_edit else '' }}"
+             class="w-full mt-1 px-2 py-1 text-sm rounded"
+             style="background: var(--bg); border: 1px solid var(--border); color: var(--text);">
+    </label>
+    <label class="text-xs" style="color: var(--text-muted);">Priority (lower = higher priority)
+      <input type="number" name="priority" value="{{ rule.priority if is_edit else 100 }}" min="0"
+             class="w-full mt-1 px-2 py-1 text-sm rounded"
+             style="background: var(--bg); border: 1px solid var(--border); color: var(--text);">
+    </label>
+  </div>
+
+  <div class="grid grid-cols-2 gap-3">
+    <label class="text-xs" style="color: var(--text-muted);">Profile ID (optional)
+      <select name="profile_id"
+              class="w-full mt-1 px-2 py-1 text-sm rounded"
+              style="background: var(--bg); border: 1px solid var(--border); color: var(--text);">
+        <option value="">— default —</option>
+        {% for p in profiles %}
+          <option value="{{ p.id }}" {% if is_edit and rule.profile_id == p.id %}selected{% endif %}>
+            #{{ p.id }} {{ p.name }}
+          </option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="text-xs flex items-end gap-2" style="color: var(--text-muted);">
+      <input type="checkbox" name="enabled" value="1" {% if (not is_edit) or rule.enabled %}checked{% endif %}>
+      <span>Enabled</span>
+    </label>
+  </div>
+
+  <div class="grid grid-cols-2 gap-3">
+    <label class="text-xs" style="color: var(--text-muted);">Title regex (case-insensitive)
+      <input type="text" name="title_regex" value="{{ rule.title_regex if is_edit else '' }}"
+             placeholder="e.g. tutorial|guide"
+             class="w-full mt-1 px-2 py-1 text-sm rounded font-mono"
+             style="background: var(--bg); border: 1px solid var(--border); color: var(--text);">
+    </label>
+    <label class="text-xs" style="color: var(--text-muted);">Title excludes regex
+      <input type="text" name="title_excludes" value="{{ rule.title_excludes if is_edit else '' }}"
+             placeholder="e.g. live stream|preview"
+             class="w-full mt-1 px-2 py-1 text-sm rounded font-mono"
+             style="background: var(--bg); border: 1px solid var(--border); color: var(--text);">
+    </label>
+  </div>
+
+  <div class="grid grid-cols-2 gap-3">
+    <label class="text-xs" style="color: var(--text-muted);">Min duration (sec)
+      <input type="number" name="min_duration" value="{{ rule.min_duration if is_edit and rule.min_duration else '' }}" min="0"
+             class="w-full mt-1 px-2 py-1 text-sm rounded"
+             style="background: var(--bg); border: 1px solid var(--border); color: var(--text);">
+    </label>
+    <label class="text-xs" style="color: var(--text-muted);">Max duration (sec)
+      <input type="number" name="max_duration" value="{{ rule.max_duration if is_edit and rule.max_duration else '' }}" min="0"
+             class="w-full mt-1 px-2 py-1 text-sm rounded"
+             style="background: var(--bg); border: 1px solid var(--border); color: var(--text);">
+    </label>
+  </div>
+
+  <label class="text-xs block" style="color: var(--text-muted);">Tags any (comma-separated; matches if video has any)
+    <input type="text" name="tags_any" value="{{ tags_any_display }}"
+           placeholder="e.g. cooking, recipe"
+           class="w-full mt-1 px-2 py-1 text-sm rounded"
+           style="background: var(--bg); border: 1px solid var(--border); color: var(--text);">
+  </label>
+
+  <div class="flex items-center gap-4">
+    <label class="text-xs flex items-center gap-2" style="color: var(--text-muted);">
+      <input type="checkbox" name="skip_shorts" value="1" {% if is_edit and rule.skip_shorts %}checked{% endif %}>
+      <span>Skip Shorts (≤60s)</span>
+    </label>
+    <label class="text-xs flex items-center gap-2" style="color: var(--text-muted);">
+      <input type="checkbox" name="skip_live" value="1" {% if (not is_edit) or rule.skip_live %}checked{% endif %}>
+      <span>Skip Live</span>
+    </label>
+  </div>
+
+  <div class="flex justify-end gap-2 pt-1">
+    <button type="submit" class="px-4 py-1.5 text-sm rounded font-medium"
+            style="background: var(--accent); color: #0d1117;">
+      {% if is_edit %}Save{% else %}Create{% endif %}
+    </button>
+  </div>
+</form>

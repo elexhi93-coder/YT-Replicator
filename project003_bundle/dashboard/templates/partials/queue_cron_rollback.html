@@ -1,0 +1,79 @@
+{# Cron-queued rollback widget. Expects: cron={total, groups[]}, optional flash. #}
+<div id="cron-rollback-widget"
+     class="rounded-md border p-4 mb-6"
+     style="background: #161b22; border-color: #30363d;">
+  <div class="flex items-center justify-between mb-2">
+    <div>
+      <div class="text-sm font-semibold uppercase tracking-wide" style="color: #8b949e;">
+        Cron-queued (router auto-enqueue)
+      </div>
+      <div class="text-xs mt-1" style="color: #8b949e;">
+        Rows the router added that have <em>not</em> started downloading yet.
+        Safe to roll back at any time.
+      </div>
+    </div>
+    <div class="text-2xl font-bold"
+         style="color: {{ '#f85149' if cron.total else '#8b949e' }};">
+      {{ cron.total }}
+    </div>
+  </div>
+
+  {% if flash %}
+    <div class="text-xs mb-2 px-2 py-1 rounded"
+         style="background: rgba(63,185,80,0.10); color: #3fb950; border: 1px solid #3fb950;">
+      {{ flash }}
+    </div>
+  {% endif %}
+
+  {% if cron.groups %}
+    <table class="w-full text-sm mb-3">
+      <thead style="color: #8b949e;">
+        <tr>
+          <th class="text-left px-2 py-1 font-medium">Source</th>
+          <th class="text-left px-2 py-1 font-medium">Destination</th>
+          <th class="text-right px-2 py-1 font-medium">Rows</th>
+          <th class="text-right px-2 py-1 font-medium">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in cron.groups %}
+          <tr style="border-top: 1px solid #30363d;">
+            <td class="px-2 py-1" style="color: #c9d1d9;">
+              {{ row.source_name }}{% if row.source_id %}
+                <span class="text-xs" style="color: #8b949e;">#{{ row.source_id }}</span>
+              {% endif %}
+            </td>
+            <td class="px-2 py-1" style="color: #c9d1d9;">
+              {{ row.destination_label }}
+              <span class="text-xs" style="color: #8b949e;">#{{ row.destination_id }}</span>
+            </td>
+            <td class="px-2 py-1 text-right font-mono" style="color: #c9d1d9;">{{ row.n }}</td>
+            <td class="px-2 py-1 text-right">
+              <button hx-post="/partials/queue/cron-rollback?source_id={{ row.source_id or '' }}&destination_id={{ row.destination_id }}"
+                      hx-target="#cron-rollback-widget" hx-swap="outerHTML"
+                      hx-confirm="Roll back {{ row.n }} cron-queued row(s) for this pair?"
+                      class="px-2 py-0.5 rounded text-xs"
+                      style="background: #21262d; color: #f85149; border: 1px solid #30363d;">
+                Roll back
+              </button>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="flex justify-end">
+      <button hx-post="/partials/queue/cron-rollback"
+              hx-target="#cron-rollback-widget" hx-swap="outerHTML"
+              hx-confirm="Roll back ALL {{ cron.total }} cron-queued row(s)?"
+              class="px-3 py-1 rounded text-xs font-medium"
+              style="background: #f85149; color: white;">
+        ⨯ Roll back all {{ cron.total }}
+      </button>
+    </div>
+  {% else %}
+    <div class="text-sm py-2 italic" style="color: #8b949e;">
+      No cron-queued rows. The router has nothing waiting.
+    </div>
+  {% endif %}
+</div>

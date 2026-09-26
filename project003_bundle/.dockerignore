@@ -1,0 +1,26 @@
+# Ignore editor / OS files
+.git
+.gitignore
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Ignore environment files and runtime artifacts
+.env
+.env.*
+*.log
+
+# Ignore build output and runtime data
+downloads/
+db/
+cookies/
+*.pyc
+__pycache__/
+
+# Ignore unrelated directories not needed for the watcher build context
+project003_bundle/
+tests/
+docs/
+.npm/
+node_modules/

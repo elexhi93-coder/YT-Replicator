@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-6xl mx-auto py-6 space-y-6">
+
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-white">YouTube Cloud Projects</h1>
+      <p class="text-sm text-gray-400 mt-1">
+        Each Google Cloud project gives ~6 uploads/day (10 000 quota units,
+        1 600 per <code class="text-gray-300">videos.insert</code>).
+        Add multiple projects per channel to multiply that cap — the
+        scheduler rotates within each channel's pool.
+      </p>
+    </div>
+  </div>
+
+  {# ---- Bulk re-auth banner (shown when any token is dead) ---- #}
+  <div id="reauth-banner"
+       hx-get="/partials/projects/reauth_summary"
+       hx-trigger="load, every 30s"
+       hx-swap="innerHTML"></div>
+
+  {% if request.args.get('reauth_done') %}
+    <div class="rounded border border-green-700 bg-green-900/20 text-green-200 px-3 py-2 text-sm">
+      ✓ All re-auth flows completed. Refresh the page if any project still shows "needs re-auth".
+    </div>
+  {% endif %}
+
+  {# ---- Flash banner from multi-file upload ---- #}
+  {% if request.args.get('added') %}
+    {% set added = request.args.get('added')|int %}
+    {% set errs  = request.args.get('errors', '') %}
+    <div class="rounded border px-3 py-2 text-sm
+                {% if errs %}border-amber-700 bg-amber-900/20 text-amber-200
+                {% else %}border-green-700 bg-green-900/20 text-green-200{% endif %}">
+      Added {{ added }} project{% if added != 1 %}s{% endif %}.
+      {% if errs %}<span class="text-amber-300">Errors:</span> <code>{{ errs }}</code>{% endif %}
+    </div>
+  {% endif %}
+
+  {# ---- Add new project (multi-file) ---- #}
+  <div class="bg-gray-900 border border-gray-700 rounded p-4">
+    <h2 class="text-lg font-semibold text-white mb-3">Add projects</h2>
+    <form method="post" action="/api/projects" enctype="multipart/form-data"
+          class="space-y-3">
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">
+          OAuth client JSON file(s)
+          <span class="text-gray-500">
+            — drag in many at once (Google Cloud Console → APIs &amp; Services → Credentials)
+          </span>
+        </label>
+        <input type="file" name="secrets_json" accept=".json,application/json"
+               required multiple
+               class="text-sm text-gray-200 file:mr-3 file:py-1 file:px-3 file:rounded
+                      file:bg-blue-600 file:text-white file:border-0 hover:file:bg-blue-500" />
+        <div class="text-[11px] text-gray-500 mt-1">
+          Tip: pick all your OAuth JSONs together — each file becomes one project row.
+          You'll click <em>Connect channel</em> on each one afterwards to bind a YouTube channel.
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">
+            Label (single file)
+          </label>
+          <input type="text" name="label" placeholder="e.g. ManhuaNova-A"
+                 class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1
+                        text-sm text-white" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">
+            Label prefix (multi-file)
+          </label>
+          <input type="text" name="label_prefix" placeholder="e.g. ManhuaNova → -A, -B, -C…"
+                 class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1
+                        text-sm text-white" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Daily cap (per project)</label>
+          <input type="number" name="daily_cap" value="6" min="1" max="50"
+                 class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1
+                        text-sm text-white" />
+        </div>
+      </div>
+      <button type="submit"
+              class="px-3 py-1.5 rounded bg-green-600 hover:bg-green-500 text-white text-sm">
+        + Add project(s)
+      </button>
+    </form>
+  </div>
+
+  {# ---- Grouped-by-channel view ---- #}
+  <div class="bg-gray-900 border border-gray-700 rounded">
+    <div class="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
+      <h2 class="text-lg font-semibold text-white">Projects grouped by channel</h2>
+      <div class="flex items-center gap-2">
+        <a href="#" id="view-toggle"
+           class="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-200"
+           data-view="cards">Switch to flat table</a>
+        <button hx-get="/partials/projects/by_channel"
+                hx-target="#proj-list" hx-swap="innerHTML"
+                class="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-200">
+          Refresh
+        </button>
+      </div>
+    </div>
+    <div id="proj-list"
+         hx-get="/partials/projects/by_channel"
+         hx-trigger="load, every 10s"
+         hx-swap="innerHTML">
+      <div class="p-4 text-sm text-gray-500 italic">Loading…</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // Toggle between grouped (cards) and legacy flat-table view.
+  (function () {
+    var btn = document.getElementById('view-toggle');
+    if (!btn) return;
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      var list = document.getElementById('proj-list');
+      var current = btn.getAttribute('data-view');
+      if (current === 'cards') {
+        list.setAttribute('hx-get', '/partials/projects/list');
+        btn.setAttribute('data-view', 'flat');
+        btn.textContent = 'Switch to channel cards';
+      } else {
+        list.setAttribute('hx-get', '/partials/projects/by_channel');
+        btn.setAttribute('data-view', 'cards');
+        btn.textContent = 'Switch to flat table';
+      }
+      if (window.htmx) {
+        htmx.process(list);
+        htmx.trigger(list, 'load');
+      }
+    });
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,122 @@
+{# partials/channel_list.html — channels list + add form.
+   Expects: pid, channels, available_sources (list, may be empty).
+   PR4a: adds an optional "pick from registered Sources" dropdown that
+   pre-fills the manual URL+name fields. The dropdown is purely a UX
+   shortcut — submission still goes through the same POST endpoint, so
+   nothing in the DB write path changed. #}
+{% set available_sources = available_sources|default([]) %}
+<ul class="flex flex-col gap-1 mb-3">
+  {% for c in channels %}
+    <li class="flex items-center gap-2 px-2 py-1.5 rounded text-sm"
+        style="background: #161b22; border: 1px solid #30363d;">
+      <span class="text-white flex-1 truncate" title="{{ c.url }}">{{ c.name }}</span>
+      <span class="text-xs px-1.5 py-0.5 rounded"
+            style="background: #21262d; color: #8b949e;">{{ c.mode }}</span>
+      <span class="text-xs" style="color: #8b949e;">{{ c.uploads_today }}/{{ c.daily_limit }}</span>
+      <button class="text-xs px-1.5 py-0.5 rounded hover:bg-red-900"
+              style="color: #f85149;"
+              hx-delete="/partials/channels/{{ c.id }}?pipeline_id={{ pid }}"
+              hx-target="#channel-list-{{ pid }}"
+              hx-swap="innerHTML"
+              hx-confirm="Remove channel '{{ c.name }}'?">&times;</button>
+    </li>
+  {% else %}
+    <li class="text-xs italic" style="color: #8b949e;">No channels yet.</li>
+  {% endfor %}
+</ul>
+
+<form id="channel-form-{{ pid }}"
+      hx-post="/partials/pipelines/{{ pid }}/channels"
+      hx-target="#channel-list-{{ pid }}"
+      hx-swap="innerHTML"
+      hx-on::after-request="if(event.detail.successful) this.reset()"
+      class="flex flex-col gap-2 p-2 rounded"
+      style="background: #161b22; border: 1px solid #30363d;">
+
+  {# ---- A. Quick-pick from registered Sources (optional) ---- #}
+  {% set pickable = available_sources|rejectattr('attached_here')|list %}
+  {% if pickable %}
+    <div class="flex items-center gap-2">
+      <label class="text-[11px] uppercase tracking-wide shrink-0"
+             style="color:#8b949e;">From Sources</label>
+      <select onchange="prefillChannelForm{{ pid }}(this)"
+              class="px-2 py-1 text-sm rounded flex-1"
+              style="background: #0d1117; color: #e6edf3; border: 1px solid #30363d;"
+              title="Pick a source registered on the /sources tab to auto-fill the form below. The Add button below still creates the channel.">
+        <option value="">— pick a source to pre-fill below —</option>
+        {% for s in pickable %}
+          <option value="{{ s.url|e }}"
+                  data-name="{{ s.name|e }}"
+                  data-attached="{% if s.attached_other %}1{% else %}0{% endif %}">
+            {{ s.name }}
+            {%- if s.attached_other %} · in: {{ s.source_pipeline_name or '?' }}{% endif -%}
+            {%- if s.total_known %} · {{ s.total_known }} videos{% endif -%}
+          </option>
+        {% endfor %}
+      </select>
+      <a href="/sources" target="_blank" rel="noopener"
+         class="text-[11px] underline shrink-0"
+         style="color:#58a6ff;" title="Manage registered sources">manage…</a>
+    </div>
+    <div class="text-[10px] italic" style="color:#6e7681;">
+      Picking a source only fills the inputs below — review and click Add.
+      Sources already attached to this pipeline are hidden.
+    </div>
+    <div style="border-top:1px dashed #30363d;margin:4px 0 2px;"></div>
+    <div class="text-[11px] uppercase tracking-wide" style="color:#8b949e;">
+      Or enter manually
+    </div>
+  {% endif %}
+
+  {# ---- B. Manual entry (always visible, unchanged inputs) ---- #}
+  <input name="name" required placeholder="Channel display name"
+         class="px-2 py-1 text-sm rounded"
+         style="background: #0d1117; color: #e6edf3; border: 1px solid #30363d;" />
+  <input name="url" required placeholder="https://www.youtube.com/@handle  or  /channel/UC…"
+         class="px-2 py-1 text-sm rounded"
+         style="background: #0d1117; color: #e6edf3; border: 1px solid #30363d;" />
+  <div class="flex gap-2">
+    <select name="mode"
+            class="px-2 py-1 text-sm rounded flex-1"
+            style="background: #0d1117; color: #e6edf3; border: 1px solid #30363d;">
+      <option value="monitor">monitor</option>
+      <option value="backfill">backfill</option>
+    </select>
+    <input name="daily_limit" type="number" min="1" max="100" value="10"
+           class="px-2 py-1 text-sm rounded w-20"
+           style="background: #0d1117; color: #e6edf3; border: 1px solid #30363d;" />
+    <button type="submit"
+            class="px-3 py-1 text-sm rounded font-medium"
+            style="background: #238636; color: white;">Add</button>
+  </div>
+</form>
+
+{% if pickable %}
+<script>
+  // Prefill the manual inputs from a chosen source. Defined per-pipeline
+  // so multiple pipeline cards on the same page don't collide.
+  function prefillChannelForm{{ pid }}(sel) {
+    var form = document.getElementById('channel-form-{{ pid }}');
+    if (!form || !sel.value) return;
+    var nameInput = form.querySelector('input[name="name"]');
+    var urlInput  = form.querySelector('input[name="url"]');
+    var opt = sel.options[sel.selectedIndex];
+    if (urlInput)  urlInput.value  = sel.value;
+    if (nameInput) nameInput.value = opt.getAttribute('data-name') || '';
+    if (opt.getAttribute('data-attached') === '1') {
+      // Soft warning: source already lives in another pipeline. Adding
+      // here will fail with DUPLICATE_CHANNEL because channels.channel_id
+      // is globally unique. Surface that up-front instead of after submit.
+      nameInput.style.borderColor = '#d29922';
+      urlInput.style.borderColor  = '#d29922';
+      nameInput.title = 'This source is already attached to another pipeline. Detach it there first, or pick a different one.';
+      urlInput.title  = nameInput.title;
+    } else {
+      nameInput.style.borderColor = '#30363d';
+      urlInput.style.borderColor  = '#30363d';
+      nameInput.title = '';
+      urlInput.title  = '';
+    }
+  }
+</script>
+{% endif %}

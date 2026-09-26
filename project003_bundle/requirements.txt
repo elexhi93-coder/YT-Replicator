@@ -1,0 +1,8 @@
+yt-dlp>=2023.7.6
+requests>=2.31.0
+Pillow>=10.0.0
+pyperclip>=1.8.2
+
+# Upload functionality (optional, for multi-platform uploads)
+# google-api-python-client>=2.100.0  # For YouTube API (optional, uses urllib instead)
+# google-auth-oauthlib>=1.1.0  # For YouTube OAuth (optional, uses custom auth)
