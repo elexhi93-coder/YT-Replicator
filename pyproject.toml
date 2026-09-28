@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "yt-replicator"
+version = "0.1.0"
+description = "Modular, self-hosted YouTube content replication system."
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+# Modules live under src/ per docs/PILLARS/07_PLATFORM.../03_INTERFACE_CONTRACT.md;
+# imports remain `core.api`, `jobs.api`, etc. via pythonpath.
+pythonpath = ["src"]
+testpaths = ["tests", "src"]
+norecursedirs = [".git", ".venv", "__pycache__", "project003_bundle", "*.egg-info"]
+
+# docs/04_ARCHITECTURE.md §4.1 — import contracts expressing exactly the §3 arrows.
+# The twelve modules are top-level packages (imported as `core.api`, not
+# `src.core.api` — see pyproject pythonpath), so each is a root package.
+# Run with PYTHONPATH=src (or `python -m importlinter` from repo root as CI does).
+[tool.importlinter]
+root_packages = [
+    "core",
+    "accounts",
+    "credentials",
+    "sources",
+    "pipelines",
+    "jobs",
+    "youtube",
+    "delivery",
+    "media",
+    "worker",
+    "ops",
+    "ui",
+]
+
+[[tool.importlinter.contracts]]
+name = "One-way dependency layers (docs/04 §3)"
+type = "layers"
+layers = [
+    "ui",
+    "worker",
+    "delivery",
+    "youtube",
+    "media",
+    "jobs",
+    "sources",
+    "pipelines",
+    "ops",
+    "credentials",
+    "accounts",
+    "core",
+]
+
+[[tool.importlinter.contracts]]
+name = "Independent domain modules never import each other"
+type = "independence"
+modules = [
+    "media",
+    "jobs",
+    "sources",
+    "pipelines",
+    "ops",
+]

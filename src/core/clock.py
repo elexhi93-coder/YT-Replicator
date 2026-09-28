@@ -11,10 +11,25 @@ either to be released 1 hour too early (triggering 403 quotaExceeded) or delayed
 1 hour past the actual reset.
 """
 
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
+from dataclasses import dataclass
 from zoneinfo import ZoneInfo
 
 PACIFIC_TZ = ZoneInfo("America/Los_Angeles")
+
+
+@dataclass(frozen=True)
+class PacificTimeDTO:
+    """Authoritative Pacific Time snapshot for quota boundaries (Pillar 7 §2).
+
+    All quota math across the system reads these four fields; nobody computes
+    their own Pacific midnight.
+    """
+
+    utc_now: datetime
+    pacific_now: datetime
+    pacific_date: date                   # Calendar date in America/Los_Angeles
+    next_midnight_pacific_utc: datetime  # UTC moment of next 00:00:00 PT rollover
 
 
 def now_utc() -> datetime:
@@ -64,3 +79,44 @@ def quota_day_string(dt: datetime | None = None) -> str:
 
     pacific_dt = dt.astimezone(PACIFIC_TZ)
     return pacific_dt.strftime("%Y-%m-%d")
+
+
+def quota_day(now: datetime) -> date:
+    """Return the Pacific calendar date that owns `now`'s quota usage (docs/04 §5).
+
+    Naive datetimes are interpreted as UTC. This is the single canonical
+    quota-day evaluator (INV-2): every quota query across the system derives
+    its day boundary from this function.
+    """
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    return now.astimezone(PACIFIC_TZ).date()
+
+
+def get_pacific_time() -> "PacificTimeDTO":
+    """Return the authoritative Pacific Time snapshot for quota calculations (INV-2).
+
+    Contract: `docs/PILLARS/07.../03_INTERFACE_CONTRACT.md` §3.2.
+    """
+    utc_now = now_utc()
+    pacific_now = utc_now.astimezone(PACIFIC_TZ)
+    pacific_date = pacific_now.date()
+    next_midnight_pacific = datetime.combine(
+        pacific_date + timedelta(days=1),
+        time.min,
+        tzinfo=PACIFIC_TZ,
+    )
+    return PacificTimeDTO(
+        utc_now=utc_now,
+        pacific_now=pacific_now,
+        pacific_date=pacific_date,
+        next_midnight_pacific_utc=next_midnight_pacific.astimezone(timezone.utc),
+    )
+
+
+def get_pacific_date_string() -> str:
+    """Return the current Pacific calendar date formatted as 'YYYY-MM-DD' (INV-2).
+
+    Contract: `docs/PILLARS/07.../03_INTERFACE_CONTRACT.md` §3.2.
+    """
+    return get_pacific_time().pacific_date.strftime("%Y-%m-%d")
