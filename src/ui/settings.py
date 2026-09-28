@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "accounts",
     "credentials",
     "sources",
+    "pipelines",
     "ui",
 ]
 

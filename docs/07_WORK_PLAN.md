@@ -22,16 +22,21 @@ holds.
 | **U04** | **complete** | Enforcement: `import-linter` layered + independence contracts in `pyproject.toml` (2 kept, 0 broken), `tests/test_module_boundaries.py` (only the 12 documented modules exist; sibling imports are `<sibling>.api`-only and follow the §2/§3 arrows; the graph is acyclic; `core` imports nothing), `tests/test_module_size.py` (600-line cap). |
 | **U05** | **complete** | Credentials: `credentials/models.py` (`google_client`, `authorized_channel`, docs/03 §4), migration `0001_initial`, `credentials/oauth.py` + `credentials/http.py` (the module's only network seam, injectable), `credentials/errors.py` (typed; `invalid_grant` → permanent `AuthRevoked`, 5xx → transient `TokenRefreshFailed`), `credentials/api.py` (client CRUD with INV-1 encrypted secrets, signed OAuth `state`, code exchange, proactive refresh, single `valid_access_token`), 31 module tests, `credentials/CONTRACT.md` published, `04` §6 row and `03` §2.1 reconciliation added. |
 | **U07** | **complete** | `sources` (`source`, `catalog_video` + migration, docs/03 §5; `urls.py` SSRF/normalisation guards; `errors.py` typed set; `provider.py` Port A over yt-dlp, the only place that shells out; `dto.py`; `api.py` with `add_source`/`list_sources`/`scan`/`hydrate`), 22 module tests, `sources/CONTRACT.md` published, 04 §6 rows for the port registry and `sources.api`. Registry tests: 8. 142 tests green; import-linter 2 kept / 0 broken. |
+| **U06** | **complete except `missing_videos`** | `pipelines` (`download_profile`, `pipeline`, `pipeline_source`, `destination`, `pipeline_destination` + migration, docs/03 §6), `errors.py` typed set, `api.py` with CRUD, the `draft → active → paused` machine (activation refused unless a source and an enabled destination exist), source/destination attachment, and download profiles. 35 module tests, `pipelines/CONTRACT.md` published, 04 §6 row added. 177 tests green; import-linter 2 kept / 0 broken. **`missing_videos()` is split out** — it needs `catalog_video` (owned by `sources`) and `delivery` (U10), and `pipelines` may import no sibling at all (independence contract); see `pipelines/CONTRACT.md` §4. |
 | U08–U25 | not started | — |
 
-**Next unit: U06 — `pipelines`.**
+**Next unit: U08 — `jobs`.**
 
-> **Order correction (recorded here because §0 is the status of record).** The
-> table listed U06 before U07, but `pipeline_source.source_id` is
-> `REFERENCES source(id)` (docs/03 §6) and the `source` table is created by U07,
-> so U06's migration cannot be written before U07 runs. The dependency order in
-> §3 is amended below. U07 was therefore completed first; U06 is next and now
-> has its FK target and a published `sources.api` to read candidates through.
+> **Two order corrections (recorded here because §0 is the status of record).**
+> 1. The table listed U06 before U07, but `pipeline_source.source_id` is
+>    `REFERENCES source(id)` (docs/03 §6) and the `source` table is created by
+>    U07, so U06's migration could not be written before U07 ran. U07 therefore
+>    completed first; §3's dependency column is amended.
+> 2. `missing_videos()` was split out of U06 for the reason recorded in the
+>    unit's CONTRACT §4: it needs a `pipelines → sources` edge that the
+>    independence contract does not permit, and the `delivery` ledger (U10) that
+>    does not yet exist. Resolving it is a docs/04 §2/§3 decision, carried to
+>    U25 rather than smuggled into a module that may not read the data.
 
 > Security note carried from U00: a credential export containing 22 OAuth
 > refresh tokens sits in `project003_bundle/docs/Export-Import/` and is excluded
