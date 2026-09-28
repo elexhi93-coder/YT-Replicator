@@ -1,0 +1,14 @@
+{% extends "ui/base.html" %}
+{# Login page (Django auth views render this template). #}
+{% block title %}Log in · YT-Replicator{% endblock %}
+{% block page_header %}
+  <h1 class="text-xl font-semibold">Log in</h1>
+{% endblock %}
+{% block content %}
+  <form method="post" action="{% url 'login' %}" class="max-w-sm space-y-3">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="px-3 py-1 rounded bg-sky-700">Log in</button>
+    <input type="hidden" name="next" value="{{ next }}">
+  </form>
+{% endblock %}

@@ -13,6 +13,7 @@ INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "accounts",
+    "ui",
 ]
 
 DATABASES = {
@@ -31,7 +32,12 @@ INSTALLED_APPS += [
 ]
 
 # Docs/04 §9: CSRF on every state-changing request (forms under test use it).
+# Session + auth middleware so the test Client's force_login attaches
+# request.user (login_required / nav_context depend on it).
 MIDDLEWARE = [
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
 ]
 
@@ -39,3 +45,19 @@ MIDDLEWARE = [
 LOGIN_URL = "/login/"
 
 ROOT_URLCONF = "tests.test_urls"
+
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": ["src/ui/templates"],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+                "ui.context_processors.nav_context",
+            ],
+        },
+    },
+]

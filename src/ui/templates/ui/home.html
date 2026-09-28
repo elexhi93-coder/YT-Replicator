@@ -1,0 +1,13 @@
+{% extends "ui/base.html" %}
+{# Home placeholder (U03 shell). Full status-at-a-glance ships in U22. #}
+{% block title %}Home · YT-Replicator{% endblock %}
+{% block page_header %}
+  <h1 class="text-xl font-semibold">Home</h1>
+{% endblock %}
+{% block content %}
+  <p class="text-slate-300">Status at a glance lands here in U22 (heartbeats, quota, disk, queue depth).</p>
+  {% if workspace %}
+    <p class="text-sm text-slate-400 mt-2">Workspace: {{ workspace.name }} ({{ workspace.slug }})</p>
+  {% endif %}
+  <p class="text-sm mt-4"><a class="underline" href="{% url 'healthz' %}">Liveness probe</a></p>
+{% endblock %}

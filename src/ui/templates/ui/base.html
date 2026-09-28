@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+{# base.html — the one layout (docs/04 §8.1, D17). Exactly four blocks: #}
+{# context_slot, nav, title/actions (page_header), content. New pages are #}
+{# small templates extending this one; nothing else varies. #}
+{# Navigation is data (NAV), never markup (§8.2); every link uses {% url %} #}
+{# so no URL is hardcoded (§8.3). Theme: Tailwind + HTMX via CDN (§8.5). #}
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}YT-Replicator{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+<header class="border-b border-slate-800">
+  <div class="flex items-center gap-4 px-4 py-2">
+    {# Header context slot — active workspace name today, a switcher later (§8.6). #}
+    <div id="context-slot" class="font-semibold">
+      {% block context_slot %}{% if workspace %}{{ workspace.name }}{% else %}YT-Replicator{% endif %}{% endblock %}
+    </div>
+    <nav aria-label="Primary" class="flex gap-4 text-sm">
+      {% block nav %}
+        {% for group in nav_groups %}
+          <span class="text-slate-400">{{ group.title }}</span>
+          {% for item in group.items %}
+            <a class="hover:underline" href="{% url item.route %}">{{ item.label }}</a>
+          {% endfor %}
+        {% empty %}
+          {# Anonymous / pre-navigation state: no links, never a partial page. #}
+        {% endfor %}
+      {% endblock %}
+    </nav>
+    <div class="ml-auto text-sm text-slate-400">
+      {% if user.is_authenticated %}{{ user.username }} · {{ user_role }}{% endif %}
+    </div>
+  </div>
+  <div class="flex items-center justify-between px-4 py-3">
+    {% block page_header %}{% endblock %}
+  </div>
+</header>
+<main class="px-4 py-4">
+  {% if messages %}
+    <div id="toasts" class="space-y-2 mb-4">
+      {% for message in messages %}<p class="text-sm">{{ message }}</p>{% endfor %}
+    </div>
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

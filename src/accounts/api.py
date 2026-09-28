@@ -142,6 +142,8 @@ def role_required(role: str):
 
 __all__ = [
     "ROLE_RANK",
+    "Workspace",
+    "WorkspaceMember",
     "current_workspace",
     "get_default_workspace",
     "require_role",
