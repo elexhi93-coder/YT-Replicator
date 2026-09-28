@@ -19,7 +19,7 @@ testpaths = ["tests", "src"]
 norecursedirs = [".git", ".venv", "__pycache__", "project003_bundle", "*.egg-info"]
 DJANGO_SETTINGS_MODULE = "tests.django_settings"
 
-# docs/04_ARCHITECTURE.md §4.1 — import contracts expressing exactly the §3 arrows.
+# docs/04_ARCHITECTURE.md §4.1 — import contracts expressing exactly the §2/§3 arrows.
 # The twelve modules are top-level packages (imported as `core.api`, not
 # `src.core.api` — see pyproject pythonpath), so each is a root package.
 # Run with PYTHONPATH=src (or `python -m importlinter` from repo root as CI does).
@@ -39,20 +39,26 @@ root_packages = [
     "ui",
 ]
 
+# Layering mirrors §2 "May import" exactly: a layer may only import layers
+# below it. Independent domain modules (credentials/sources/pipelines/jobs/
+# media/ops) share one layer so the independence contract — not layering —
+# forbids imports between them. Three documented exceptions need `ignore_imports`:
+# worker -> delivery skips intermediate layers, delivery -> jobs.api reaches up
+# past youtube, and ui may import every module's api (independent of layers).
 [[tool.importlinter.contracts]]
-name = "One-way dependency layers (docs/04 §3)"
+name = "One-way dependency layers (docs/04 §2/§3)"
 type = "layers"
 layers = [
     "ui",
     "worker",
     "delivery",
     "youtube",
-    "media",
-    "jobs",
+    "credentials",
     "sources",
     "pipelines",
+    "jobs",
+    "media",
     "ops",
-    "credentials",
     "accounts",
     "core",
 ]
@@ -61,9 +67,10 @@ layers = [
 name = "Independent domain modules never import each other"
 type = "independence"
 modules = [
-    "media",
-    "jobs",
+    "credentials",
     "sources",
     "pipelines",
+    "jobs",
+    "media",
     "ops",
 ]

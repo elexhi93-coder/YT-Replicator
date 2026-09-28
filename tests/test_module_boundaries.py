@@ -33,12 +33,14 @@ MODULES = frozenset(
     }
 )
 
-# Allowed sibling imports: importer -> imported (docs/04_ARCHITECTURE.md §3).
+# Allowed sibling imports: importer -> imported (docs/04_ARCHITECTURE.md §2/§3).
+# Mirrors the §2 "May import" column exactly; §3's ASCII diagram abbreviates
+# `core`/`accounts` (every domain module takes both) and `delivery`'s row.
 ALLOWED_IMPORTS: dict[str, frozenset[str]] = {
     "ui": MODULES - {"ui"},
     "worker": frozenset({"jobs", "media", "delivery"}),
-    "delivery": frozenset({"youtube", "jobs"}),
-    "youtube": frozenset({"credentials"}),
+    "delivery": frozenset({"core", "accounts", "youtube", "jobs"}),
+    "youtube": frozenset({"core", "accounts", "credentials"}),
     "media": frozenset({"core", "accounts"}),
     "jobs": frozenset({"core", "accounts"}),
     "sources": frozenset({"core", "accounts"}),
@@ -102,7 +104,7 @@ def test_only_documented_modules_exist_under_src():
 
 
 def test_sibling_imports_use_api_only_and_follow_arrows():
-    """INV-12: cross-module access is only via `<module>.api`, along §3 arrows."""
+    """INV-12: cross-module access is only via `<module>.api`, along §2/§3 arrows."""
     violations: list[str] = []
     for module, py_file in _module_files():
         for sibling, dotted, lineno in _sibling_imports(module, py_file):
@@ -115,7 +117,7 @@ def test_sibling_imports_use_api_only_and_follow_arrows():
             if sibling not in ALLOWED_IMPORTS[module]:
                 violations.append(
                     f"{rel}:{lineno} imports '{sibling}' from '{module}' — "
-                    "forbidden by the dependency arrows (docs/04 §3)."
+                    "forbidden by the dependency arrows (docs/04 §2/§3)."
                 )
     assert not violations, "\n".join(violations)
 

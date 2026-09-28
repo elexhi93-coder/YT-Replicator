@@ -13,7 +13,11 @@ May import: core.api only (docs/04 §3). Nothing else.
 | `current_workspace(request)` | `(HttpRequest) -> Workspace` | THE single access helper (D11, docs/04 §5): member's active workspace; anonymous → `PermissionDenied` (views apply `login_required` first as the primary redirect, D16); authenticated non-member → `PermissionDenied` except superuser bootstrap to the default workspace. |
 | `require_role(user, workspace, role)` | `(user, Workspace, str) -> WorkspaceMember` | The one place roles are checked (docs/04 §9): returns the active membership when rank suffices; anonymous/non-member/under-ranked → `PermissionDenied`; unknown `role` → `KeyError` (fails loudly). |
 | `role_required(role)` | `(str) -> decorator` | Login required + role gate; attaches scope as `request.workspace` (§6 row 2026-09-28). Anonymous → redirect to `LOGIN_URL`; below role → 403. |
-| `Workspace`, `WorkspaceMember` | re-exported models | Re-exported from `accounts.models` via `accounts.api` so cross-module consumers (e.g. `ui` views/tests) never import `accounts.models` directly (INV-12: sibling access only via `<sibling>.api`). |
+
+Models (`Workspace`, `WorkspaceMember`) are used within the module and via
+Django's app registry elsewhere; cross-module Python access is only via the
+five symbols above (INV-12: sibling access only via `<sibling>.api`; tests
+use the registry / fixtures rather than importing `accounts.models`).
 
 # 2. Errors
 

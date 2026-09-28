@@ -7,12 +7,13 @@ from django.test import RequestFactory
 
 from accounts.api import (
     ROLE_RANK,
+    Workspace,
+    WorkspaceMember,
     current_workspace,
     get_default_workspace,
     require_role,
     role_required,
 )
-from accounts.models import Workspace, WorkspaceMember
 
 pytestmark = pytest.mark.django_db
 

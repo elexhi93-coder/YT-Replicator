@@ -11,7 +11,8 @@ import pytest
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
-from accounts.api import Workspace, WorkspaceMember
+from accounts.api import get_default_workspace
+from django.apps import apps
 from django.contrib.auth import get_user_model
 
 from ui.nav import NAV, NavGroup, NavItem, all_nav_labels, visible_nav
@@ -38,7 +39,8 @@ class ShellTests(TestCase):
     def setUp(self):
         User = get_user_model()
         self.user = User.objects.create_user(username="op", password="pw")
-        self.ws = Workspace.objects.get(slug="default")
+        self.ws = get_default_workspace()
+        WorkspaceMember = apps.get_model("accounts", "WorkspaceMember")
         WorkspaceMember.objects.create(
             user=self.user, workspace=self.ws, role="owner"
         )
