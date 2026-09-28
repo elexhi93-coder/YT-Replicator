@@ -1,0 +1,41 @@
+"""Django settings for the test suite only.
+
+U02 needs a Django environment before U03 ships the real project shell
+(`ui` module). Deliberately minimal: auth + contenttypes + accounts.
+
+INV-10 note: SQLite here is allowed — the invariant forbids SQLite **in
+production** (D-19). The production settings (U03/U23) are PostgreSQL.
+"""
+
+SECRET_KEY = "test-only-not-a-production-secret"
+
+INSTALLED_APPS = [
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "accounts",
+]
+
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": ":memory:",
+    }
+}
+
+USE_TZ = True
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+INSTALLED_APPS += [
+    "django.contrib.sessions",
+    "django.contrib.messages",
+]
+
+# Docs/04 §9: CSRF on every state-changing request (forms under test use it).
+MIDDLEWARE = [
+    "django.middleware.csrf.CsrfViewMiddleware",
+]
+
+# login_required redirects here (D16).
+LOGIN_URL = "/login/"
+
+ROOT_URLCONF = "tests.test_urls"

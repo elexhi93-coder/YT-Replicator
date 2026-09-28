@@ -14,9 +14,10 @@ where = ["src"]
 [tool.pytest.ini_options]
 # Modules live under src/ per docs/PILLARS/07_PLATFORM.../03_INTERFACE_CONTRACT.md;
 # imports remain `core.api`, `jobs.api`, etc. via pythonpath.
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 testpaths = ["tests", "src"]
 norecursedirs = [".git", ".venv", "__pycache__", "project003_bundle", "*.egg-info"]
+DJANGO_SETTINGS_MODULE = "tests.django_settings"
 
 # docs/04_ARCHITECTURE.md §4.1 — import contracts expressing exactly the §3 arrows.
 # The twelve modules are top-level packages (imported as `core.api`, not
