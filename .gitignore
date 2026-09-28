@@ -66,3 +66,10 @@ logs/
 *.swp
 .DS_Store
 Thumbs.db
+
+# ── Local scratch output (never commit) ───────────────────────
+# Ad-hoc `pytest > file` and command-output captures from a working session.
+*_out.txt
+run*.txt
+amend_out.txt
+c.txt

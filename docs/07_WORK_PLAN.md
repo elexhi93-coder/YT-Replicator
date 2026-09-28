@@ -19,9 +19,11 @@ holds.
 | **U01** | **complete** | `core/settings.py` (documented defaults + `APP_SETTING_DEFAULTS`), contract clock (`quota_day`, `get_pacific_time`, `get_pacific_date_string`, DST tests for 2026-03-08/2026-11-01), `is_safe_ssrf_url`, `resolve_safe_path` fixed to contract §3.3 order, Pillar 0 ports + DTOs + §8 errors in `core.api`. 46 tests green; `CONTRACT.md` §1.1/§2.1 updated; `04` §6 rows added. |
 | **U02** | **complete** | Identity + tenant scope: `accounts/models.py` (`workspace`, `workspace_member` + unique/check constraints), migrations `0001_initial` + `0002_default_workspace` (idempotent seed), `accounts/api.py` (single access helper `current_workspace`, `require_role` role gate, `role_required` view decorator), `tests/django_settings.py` + `tests/test_urls.py` (test-only Django harness), 18 module tests + boundary/size guards green, `accounts/CONTRACT.md` published, `04` §6 row added. |
 | **U03** | **complete** | Project shell (commit `3260684`): `ui/urls.py` (named routes `home`/`healthz`/`login`/`logout`), `ui/views.py` (login-gated Home placeholder + unauthenticated 200/503 liveness probe), `ui/nav.py` (data-driven `NAV`, `visible_nav`, `all_nav_labels`), `ui/context_processors.py` (`workspace`/`nav_groups`/`user_role`), `base.html` four blocks + Tailwind/HTMX CDN, `ui/settings.py` (PostgreSQL, fail-fast secret, secure sessions), `manage.py` + `ui/wsgi.py`, `ui/CONTRACT.md`, `04` §6 row added. 74 tests green (shell + boundary/size guards). |
-| U04–U25 | not started | — |
+| **U04** | **complete** | Enforcement: `import-linter` layered + independence contracts in `pyproject.toml` (2 kept, 0 broken), `tests/test_module_boundaries.py` (only the 12 documented modules exist; sibling imports are `<sibling>.api`-only and follow the §2/§3 arrows; the graph is acyclic; `core` imports nothing), `tests/test_module_size.py` (600-line cap). |
+| **U05** | **complete** | Credentials: `credentials/models.py` (`google_client`, `authorized_channel`, docs/03 §4), migration `0001_initial`, `credentials/oauth.py` + `credentials/http.py` (the module's only network seam, injectable), `credentials/errors.py` (typed; `invalid_grant` → permanent `AuthRevoked`, 5xx → transient `TokenRefreshFailed`), `credentials/api.py` (client CRUD with INV-1 encrypted secrets, signed OAuth `state`, code exchange, proactive refresh, single `valid_access_token`), 31 module tests, `credentials/CONTRACT.md` published, `04` §6 row and `03` §2.1 reconciliation added. |
+| U06–U25 | not started | — |
 
-**Next unit: U04 — enforcement.**
+**Next unit: U06 — `pipelines`.**
 
 > Security note carried from U00: a credential export containing 22 OAuth
 > refresh tokens sits in `project003_bundle/docs/Export-Import/` and is excluded

@@ -13,6 +13,7 @@ INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "accounts",
+    "credentials",
     "ui",
 ]
 

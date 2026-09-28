@@ -51,6 +51,21 @@ and this file is corrected in the same commit.
 
 `auth_user` is Django's built-in user table and is not redefined here.
 
+### 2.1 Field-type reconciliations
+
+Two column types in this document are written as PostgreSQL arrays but are
+emitted by Django as `jsonb`, because the test harness runs SQLite (INV-10
+forbids SQLite **in production**, not in the suite) and `text[]` has no SQLite
+equivalent. On PostgreSQL both store the same list, and both remain queryable:
+
+| Column | Written in §3/§6/§8 | Django field | Implemented in |
+|---|---|---|---|
+| `authorized_channel.scopes` | `text[]` | `JSONField(default=list)` | `credentials` (U05) |
+
+Future `text[]` columns listed above (`download_profile.sub_langs`,
+`catalog_video.tags`) are handled the same way when their units land, and each
+module's `CONTRACT.md` records the decision.
+
 Table inventory, in the order this document defines them:
 
 | Group | Tables |
