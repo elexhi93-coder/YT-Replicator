@@ -1,5 +1,11 @@
 # Architecture
 
+> **SUPERSEDED ARCHITECTURAL NOTE:**  
+> This high-level architectural summary represents the early repository concept and is retained solely for historical context.  
+> **Authoritative Specification:** For all current architecture, module boundaries, database schemas, and contracts, refer to the Constitution (`docs/000_AI_SUPREME_PROTOCOL.md`), Architecture (`docs/04_ARCHITECTURE.md`), and the complete Pillar specification suite in [`docs/PILLARS/`](./PILLARS/README.md).
+
+---
+
 ## Goals
 
 - Host the application on a server and operate it through a browser.

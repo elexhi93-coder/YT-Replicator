@@ -1,5 +1,11 @@
 # Pipeline Workflow
 
+> **SUPERSEDED SPECIFICATION NOTE:**  
+> This workflow document represents an early functional outline and is retained for historical traceability.  
+> **Authoritative Specification:** All pipeline stages, candidate generation algorithms, deduplication rules, and state machines are formally locked in [`docs/PILLARS/03_PIPELINES_AND_ROUTING/`](./PILLARS/03_PIPELINES_AND_ROUTING/README.md) and [`docs/PILLARS/06_DELIVERY_AND_LEDGER/`](./PILLARS/06_DELIVERY_AND_LEDGER/README.md).
+
+---
+
 ## Domain model
 
 A **Pipeline** is a required first-class object. It connects one or more YouTube **Sources** to one or more YouTube **Destinations**, and owns the settings for discovery, backfill, priorities, and upload behavior.

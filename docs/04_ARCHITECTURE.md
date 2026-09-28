@@ -121,7 +121,7 @@ boundary; anything else is internal and free to change at will.
 
 | Module | Published surface |
 |---|---|
-| `core` | `settings`, `get_logger()`, the error hierarchy, `quota_day(now) -> date` |
+| `core` | `settings`, `get_logger()`, the error hierarchy, `quota_day(now) -> date`, the port protocols and contract types (Pillar 0) |
 | `accounts` | `current_workspace(request)`, `require_role(user, workspace, role)` |
 | `credentials` | `add_google_client()`, `start_oauth(channel)`, `complete_oauth(code)`, `valid_access_token(channel)` |
 | `sources` | `add_source(url, kind)`, `scan(source) -> ScanResult`, `hydrate(batch) -> HydrateResult` |
@@ -150,7 +150,9 @@ appears here, or it is a violation.
 
 | Date | Module | Interface change | Reason | Data migration? |
 |---|---|---|---|---|
-| — | — | *(none yet — code has not started)* | — | — |
+| 2026-09-28 | `core` (base types) | **Added** three port protocols (`SourceProvider`, `DestinationPlatform`, `MetadataTransformer`), their frozen DTOs, and the provenance-marker specification (`docs/PILLARS/00_INTER_PILLAR_CONTRACTS/03_INTERFACE_CONTRACT.md`). Contract defined before code. | Pillars must be replaceable: non-YouTube source (IDEA-01), second destination platform (IDEA-02), and AI metadata rewriting (IDEA-03) all require an explicit port first (Q-2). | No |
+| 2026-09-28 | `core` | **Added** `settings` (`Settings`/`get_settings()`/`APP_SETTING_DEFAULTS`), `quota_day(now)`, `get_pacific_time()`, `get_pacific_date_string()`, `is_safe_ssrf_url()`, and the Pillar 0 §8 error classes (`NetworkError`, `RateLimitExceeded`, `ResourceTemporarilyUnavailable`, `SourceUrlRejected`, `ItemUnavailable`, `TermsViolation`, `PermanentAuthError`, alias `PillarError`/`QuotaExhausted`) — all reachable via `core.api`. **Changed** `resolve_safe_path` argument order from `(target_path, base_root)` to contract §3.3's `(base_root, relative_path)`; no consumer existed yet. | U01 completion: settings with documented defaults (U01 row), contract-mandated clock/SSRF signatures (Pillar 7 §3.2–3.3), and port-boundary error vocabulary before any adapter is written. | No |
+| — | — | *(no shipped code has changed a published interface yet)* | — | — |
 
 Rules for this table:
 

@@ -16,9 +16,10 @@ holds.
 | Unit | State | Evidence |
 |---|---|---|
 | **U00** | **complete** | commits `8b3e5d8` (`.gitignore`, `LEGACY.md`), `f5bef8d` (docs), `434b21d` (legacy archive). 244 tracked files, working tree clean, zero forbidden paths in the index, and no token pattern in any committed file. |
-| U01–U25 | not started | — |
+| **U01** | **complete** | `core/settings.py` (documented defaults + `APP_SETTING_DEFAULTS`), contract clock (`quota_day`, `get_pacific_time`, `get_pacific_date_string`, DST tests for 2026-03-08/2026-11-01), `is_safe_ssrf_url`, `resolve_safe_path` fixed to contract §3.3 order, Pillar 0 ports + DTOs + §8 errors in `core.api`. 46 tests green; `CONTRACT.md` §1.1/§2.1 updated; `04` §6 rows added. |
+| U02–U25 | not started | — |
 
-**Next unit: U01 — `core`.**
+**Next unit: U02 — `accounts`.**
 
 > Security note carried from U00: a credential export containing 22 OAuth
 > refresh tokens sits in `project003_bundle/docs/Export-Import/` and is excluded

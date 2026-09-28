@@ -18,7 +18,8 @@ Grouped by module, because **one module is one work unit** (INV-11).
 ### `core`
 Settings with documented defaults · the YouTube quota-day clock (Pacific) ·
 typed error hierarchy · structured logging · media path-safety guard ·
-SSRF allow-list validator.
+SSRF allow-list validator · the three port protocols (`SourceProvider`,
+`DestinationPlatform`, `MetadataTransformer`) and their frozen contract types (Pillar 0).
 
 ### `accounts`
 Login on every page · CSRF on every mutation · one workspace access helper ·
@@ -100,6 +101,9 @@ states and skip reasons · quota badges.
 | Per-destination AI prompt overrides | Depends on AI, which is itself parked. |
 | Per-video overrides and playlist-as-Library views | Deferred with their parents. |
 | 2FA, API tokens, self-service signup, billing | Not part of a first deployment. |
+| Second destination platform (Facebook, TikTok, Dailymotion) | Enabled architecturally by Pillar 0's `DestinationPlatform` port (IDEA-02). v1 ships exactly one implementation (YouTube) to prove the pipeline first. |
+| Non-YouTube source adapter (video editor, local folder, cloud bucket) | Enabled architecturally by Pillar 0's `SourceProvider` port (IDEA-01). Deferred to v2. |
+
 
 ---
 
@@ -107,7 +111,7 @@ states and skip reasons · quota badges.
 
 | Feature | Reason |
 |---|---|
-| Multi-platform uploaders (Dailymotion, Facebook, TikTok, Instagram, X) | The scope this rewrite exists to remove. |
+| Multi-platform uploaders as a v1 deliverable | The scope this rewrite exists to remove. Enabled for v2 via Pillar 0's `DestinationPlatform` port (IDEA-02). |
 | n8n and webhook orchestration | D-06 loses upload results permanently; you asked for an in-house solution. |
 | FFmpeg pipeline, per-destination transforms, GPU/NVENC | D15. The source file is uploaded as-is. |
 | Desktop tkinter GUI, clipboard monitor, portable exe, PyInstaller builds | Gen-1 desktop product. |

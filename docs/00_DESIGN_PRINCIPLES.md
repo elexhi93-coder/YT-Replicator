@@ -59,6 +59,10 @@ One word, one meaning. Most legacy defects reduce to one word meaning two.
 | **Retention** | Policy for deleting *valid* media. Opt-in, default off. |
 | **Pin** | An explicit hold that exempts media from retention. |
 | **Rehydrate** | Re-downloading media for a video we already know, without re-uploading. |
+| **Port** | An abstract boundary (`typing.Protocol`) defining what a capability must provide, separate from who implements it. |
+| **Adapter** | A concrete implementation of a port for a specific platform or storage system. |
+| **DTO** | Data Transfer Object: a frozen, typed, immutable structure that crosses port boundaries. Holds no database connection and no ORM state. |
+
 
 ---
 

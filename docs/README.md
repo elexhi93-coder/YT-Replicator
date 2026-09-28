@@ -15,6 +15,39 @@ The project is intentionally modular, but should remain straightforward to deplo
 
 ## Documents
 
+### AI Directives & Supreme Protocol (Mandatory First Reads)
+
+| # | Document | Purpose |
+|---|---|---|
+| [000](000_AI_SUPREME_PROTOCOL.md) | AI Supreme Protocol | The First Directive: mandatory orientation, invariants, file bounds, and partnership rules |
+| [000](000_AI_ARCHITECT_INSTRUCTIONS.md) | AI Architect Instructions & Idea Vault | Session lore, active frontiers, and the parked repository for future features (AI, editor, multi-tenancy) |
+| [000](000_AI_DEEP_SPEC_STANDARD.md) | AI Deep Specification Standard | Tree-Branch-Leaf methodology: external platform field universe rubric, frontend component frames, and end-to-end data lineage |
+
+### The Book — pillar specifications (in progress)
+
+One folder per pillar, specified from the front-end screen down to the database
+column, before any code is written. Start at its index.
+
+| Folder | Pillar | Status |
+|---|---|---|
+| [PILLARS/README.md](PILLARS/README.md) | **The Book — index and reading order** | scaffolded |
+| [PILLARS/_STANDARD/PILLAR_INSTRUCTIONS_STANDARD.md](PILLARS/_STANDARD/PILLAR_INSTRUCTIONS_STANDARD.md) | Standard for the local `000_PILLAR_INSTRUCTIONS.md` guardrail in each pillar branch | locked |
+| [PILLARS/_STANDARD/INTER_PILLAR_INTEGRATION_STANDARD.md](PILLARS/_STANDARD/INTER_PILLAR_INTEGRATION_STANDARD.md) | Standard for cross-pillar change coordination and blast-radius tracking | locked |
+
+
+| [PILLARS/_STANDARD/](PILLARS/_STANDARD/CHAPTER_STANDARD.md) | Chapter Standard — the fixed twelve-section skeleton every chapter follows | locked |
+| [PILLARS/00_INTER_PILLAR_CONTRACTS/](PILLARS/00_INTER_PILLAR_CONTRACTS/README.md) | 0 — Inter-Pillar Contracts (the highway: DTOs, ports, rules of exchange) | **drafting** — `03_INTERFACE_CONTRACT.md` written |
+| [PILLARS/01_SOURCES_AND_CATALOG/](PILLARS/01_SOURCES_AND_CATALOG/README.md) | 1 — Sources & Catalog | scaffolded |
+| [PILLARS/02_DESTINATIONS_AND_AUTH/](PILLARS/02_DESTINATIONS_AND_AUTH/README.md) | 2 — Destinations & Authorizations | scaffolded |
+| [PILLARS/03_PIPELINES_AND_ROUTING/](PILLARS/03_PIPELINES_AND_ROUTING/README.md) | 3 — Pipelines & Routing | scaffolded |
+| [PILLARS/04_JOB_ENGINE/](PILLARS/04_JOB_ENGINE/README.md) | 4 — Job Engine | scaffolded |
+| [PILLARS/05_MEDIA_AND_STORAGE/](PILLARS/05_MEDIA_AND_STORAGE/README.md) | 5 — Media & Storage | scaffolded |
+| [PILLARS/06_DELIVERY_AND_LEDGER/](PILLARS/06_DELIVERY_AND_LEDGER/README.md) | 6 — Delivery & Ledger | scaffolded |
+| [PILLARS/07_PLATFORM_FOUNDATION_AND_OPS/](PILLARS/07_PLATFORM_FOUNDATION_AND_OPS/README.md) | 7 — Platform Foundation & Operations (shell, access, worker, ops) | scaffolded |
+
+Rules: the Constitution governs (`000_AI_SUPREME_PROTOCOL.md`), and no production
+code is written until the chapter that specifies it is `locked`.
+
 ### The build set — authoritative
 
 Read `00` → `01` → `02` → `03` once. After that, consult `04`–`07` by section
