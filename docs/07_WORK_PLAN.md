@@ -21,9 +21,17 @@ holds.
 | **U03** | **complete** | Project shell (commit `3260684`): `ui/urls.py` (named routes `home`/`healthz`/`login`/`logout`), `ui/views.py` (login-gated Home placeholder + unauthenticated 200/503 liveness probe), `ui/nav.py` (data-driven `NAV`, `visible_nav`, `all_nav_labels`), `ui/context_processors.py` (`workspace`/`nav_groups`/`user_role`), `base.html` four blocks + Tailwind/HTMX CDN, `ui/settings.py` (PostgreSQL, fail-fast secret, secure sessions), `manage.py` + `ui/wsgi.py`, `ui/CONTRACT.md`, `04` §6 row added. 74 tests green (shell + boundary/size guards). |
 | **U04** | **complete** | Enforcement: `import-linter` layered + independence contracts in `pyproject.toml` (2 kept, 0 broken), `tests/test_module_boundaries.py` (only the 12 documented modules exist; sibling imports are `<sibling>.api`-only and follow the §2/§3 arrows; the graph is acyclic; `core` imports nothing), `tests/test_module_size.py` (600-line cap). |
 | **U05** | **complete** | Credentials: `credentials/models.py` (`google_client`, `authorized_channel`, docs/03 §4), migration `0001_initial`, `credentials/oauth.py` + `credentials/http.py` (the module's only network seam, injectable), `credentials/errors.py` (typed; `invalid_grant` → permanent `AuthRevoked`, 5xx → transient `TokenRefreshFailed`), `credentials/api.py` (client CRUD with INV-1 encrypted secrets, signed OAuth `state`, code exchange, proactive refresh, single `valid_access_token`), 31 module tests, `credentials/CONTRACT.md` published, `04` §6 row and `03` §2.1 reconciliation added. |
-| U06–U25 | not started | — |
+| **U07** | **complete** | `sources` (`source`, `catalog_video` + migration, docs/03 §5; `urls.py` SSRF/normalisation guards; `errors.py` typed set; `provider.py` Port A over yt-dlp, the only place that shells out; `dto.py`; `api.py` with `add_source`/`list_sources`/`scan`/`hydrate`), 22 module tests, `sources/CONTRACT.md` published, 04 §6 rows for the port registry and `sources.api`. Registry tests: 8. 142 tests green; import-linter 2 kept / 0 broken. |
+| U08–U25 | not started | — |
 
 **Next unit: U06 — `pipelines`.**
+
+> **Order correction (recorded here because §0 is the status of record).** The
+> table listed U06 before U07, but `pipeline_source.source_id` is
+> `REFERENCES source(id)` (docs/03 §6) and the `source` table is created by U07,
+> so U06's migration cannot be written before U07 runs. The dependency order in
+> §3 is amended below. U07 was therefore completed first; U06 is next and now
+> has its FK target and a published `sources.api` to read candidates through.
 
 > Security note carried from U00: a credential export containing 22 OAuth
 > refresh tokens sits in `project003_bundle/docs/Export-Import/` and is excluded
@@ -83,7 +91,7 @@ undo afterwards.
 | ID | Module | What it delivers | Depends on | Size |
 |---|---|---|---|---|
 | **U05** | `credentials` | Google client CRUD, encrypted secret, OAuth start/complete, token health and refresh, client → channel binding. | U02 | M |
-| **U06** | `pipelines` | Pipeline CRUD with `draft → active → paused`, sources and destinations per pipeline, download profile, **missing-videos query**. | U02 | M |
+| **U06** | `pipelines` | Pipeline CRUD with `draft → active → paused`, sources and destinations per pipeline, download profile, **missing-videos query**. | U02, U07 | M |
 | **U07** | `sources` | Add source with SSRF guard and URL normalisation, flat scan (metadata only), lazy hydrate with rate-limit discipline, catalog upserts. | U02 | M |
 | **U08** | `jobs` | Enqueue with dedup check, **atomic claim**, state machine, transient/permanent classification, backoff, skip reasons. | U01, U02 | M |
 

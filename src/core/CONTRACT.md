@@ -73,6 +73,13 @@ from core.api import (
     TransformInput, TransformResult,
     SourceRef, ChannelRef, VideoRef,
     PROVENANCE_MARKER_REGEX, format_provenance_marker,
+
+    # Port registry (Pillar 0 §3–§5, docs/04 §6 row 2026-09-28)
+    PortNotRegistered,
+    register_source_provider, get_source_provider,
+    register_destination_platform, get_destination_platform,
+    register_metadata_transformer, get_metadata_transformer,
+    reset_port_registry,
 )
 ```
 
@@ -88,6 +95,28 @@ from core.api import (
 | `encrypt` / `decrypt` | `MasterKeyMissingError`, `SecretDecryptionError`, `TypeError` | `TestCrypto` (8 tests) |
 | `Settings.from_env(env)` | `ValueError` on non-integer env | `TestSettings` (4 tests) |
 | `PassthroughTransformer.transform` | never raises (§5.1) | `TestPorts.test_passthrough_transformer_never_raises` |
+| `get_source_provider()` and siblings | `PortNotRegistered` | `TestPortRegistry` (8 tests, `tests/test_registry.py`) |
+| `register_*` / `reset_port_registry` | never raises | `TestPortRegistry` (factory per get, re-registration, independence, reset, passthrough default) |
+
+### 1.2 The port registry
+
+`worker` and `media` need the Port A adapter but may not import `sources`
+(docs/04 §2/§3), so the dependency is inverted in exactly one place:
+
+```python
+from core.api import register_source_provider, get_source_provider
+register_source_provider(YouTubeSourceProviderFactory)  # at process startup
+provider = get_source_provider()                        # anywhere, in any module
+```
+
+* Every `get_*` calls its factory, so a caller always receives a usable
+  instance and a test can swap behaviour by re-registering.
+* Asking for an unregistered port raises `PortNotRegistered` — a
+  configuration error naming the port, not a domain failure.
+* `get_metadata_transformer()` falls back to `PassthroughTransformer`;
+  v1 needs no registration.
+* `reset_port_registry()` is for tests only. The binding itself is installed
+  by `ui.apps.UiConfig.ready`.
 
 ---
 
@@ -115,5 +144,6 @@ from core.api import (
 ## 2.2 Test Coverage
 
 - `src/core/tests/test_core.py` — `TestClock` (incl. DST spring-forward/fall-back), `TestCrypto`, `TestExceptions` (incl. port-boundary hierarchy), `TestLogging`, `TestSecurity` (path + SSRF), `TestSettings`, `TestPorts`, `TestValidators`.
+- `src/core/tests/test_registry.py` — `TestPortRegistry` (8 tests): unregistered port raises, factory called per `get`, protocol conformance, re-registration replaces, ports are independent keys, `reset` clears, passthrough default, registered transformer wins.
 - `tests/test_module_boundaries.py` — INV-11/INV-12 AST enforcement (U04).
 - `tests/test_module_size.py` — 600-line cap (U04).

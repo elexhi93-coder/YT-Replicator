@@ -39,6 +39,16 @@ from core.exceptions import (
     TransientError,
 )
 from core.logging import StructuredLoggerAdapter, get_logger
+from core.registry import (
+    PortNotRegistered,
+    get_destination_platform,
+    get_metadata_transformer,
+    get_source_provider,
+    register_destination_platform,
+    register_metadata_transformer,
+    register_source_provider,
+    reset_port_registry,
+)
 from core.security import is_safe_ssrf_url, resolve_safe_path
 from core.crypto import decrypt, encrypt
 from core.settings import APP_SETTING_DEFAULTS, Settings, get_settings, reset_settings_cache
@@ -117,6 +127,15 @@ __all__ = [
     # Logging
     "get_logger",
     "StructuredLoggerAdapter",
+    # Port registry (Pillar 0 inversion — docs/04 §6 row 2026-09-28)
+    "PortNotRegistered",
+    "register_source_provider",
+    "get_source_provider",
+    "register_destination_platform",
+    "get_destination_platform",
+    "register_metadata_transformer",
+    "get_metadata_transformer",
+    "reset_port_registry",
     # Ports & contract types (Pillar 0)
     "SourceProvider",
     "DestinationPlatform",

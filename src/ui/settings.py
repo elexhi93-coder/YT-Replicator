@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "accounts",
     "credentials",
+    "sources",
     "ui",
 ]
 

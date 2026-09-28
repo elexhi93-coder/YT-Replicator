@@ -14,6 +14,7 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "accounts",
     "credentials",
+    "sources",
     "ui",
 ]
 
