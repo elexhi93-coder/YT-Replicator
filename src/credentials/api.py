@@ -28,6 +28,7 @@ from credentials.errors import (
     AuthRevoked,
     ChannelNotFound,
     ClientNotFound,
+    CredentialError,
     OAuthStateInvalid,
     TokenMissing,
 )

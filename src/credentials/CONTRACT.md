@@ -31,6 +31,7 @@ the token lifecycle. It never uploads media — that is `youtube` (U09).
 | `valid_access_token(channel, *, http_client=None, now=None)` | → `str` | **The only way to obtain a token.** Refreshes when the token is inside the 5-minute window, so no caller can forget the rule. |
 | `OAuthStart` | frozen dataclass | `authorization_url`, `state`. |
 | `DEFAULT_DAILY_UPLOAD_CAP` / `PENDING_CHANNEL_PREFIX` / `DEFAULT_REDIRECT_URI` / `OAUTH_STATE_SALT` / `OAUTH_STATE_MAX_AGE_SECONDS` | constants | One definition each. |
+| `CredentialError` | class | Re-exported from `credentials.errors` so a sibling can write a `except` clause without importing `credentials.errors` directly (INV-12: siblings reach this module only through `api`). Same pattern as `core.api` publishing `PermanentError`. |
 
 ### 1.1 Module layout
 

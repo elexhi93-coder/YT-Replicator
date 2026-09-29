@@ -56,12 +56,17 @@ class ShellTests(TestCase):
         }
 
     def test_visible_nav_filters_by_role_rank(self):
-        # Under ui.urls no domain page ships yet → every NAV item is hidden
-        # (NoReverseMatch skip). Role filtering itself is covered below under
-        # stub_urls where every route reverses.
+        # Credentials (U16) is the first page whose route reverses, so it is
+        # now the only link that can appear — and only for an owner. This
+        # exercises both rules at once: the unshipped pages stay hidden by the
+        # NoReverseMatch skip, and the shipped one stays hidden by rank.
         assert visible_nav("viewer") == ()
-        assert visible_nav("owner") == ()
+        assert visible_nav("operator") == ()
         assert visible_nav("nobody") == ()
+        owner_nav = visible_nav("owner")
+        assert [item.route for g in owner_nav for item in g.items] == [
+            "credentials:list"
+        ]
 
     def test_healthz_unauthenticated_and_healthy(self):
         response = self.client.get(reverse("healthz"))
