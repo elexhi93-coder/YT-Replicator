@@ -27,9 +27,11 @@ __all__ = [
     "PortNotRegistered",
     "get_destination_platform",
     "get_metadata_transformer",
+    "get_retention_oracle",
     "get_source_provider",
     "register_destination_platform",
     "register_metadata_transformer",
+    "register_retention_oracle",
     "register_source_provider",
     "reset_port_registry",
 ]
@@ -87,6 +89,23 @@ def get_metadata_transformer() -> Any:
 
         return PassthroughTransformer()
     return _build("metadata_transformer")
+
+
+def register_retention_oracle(factory: Factory) -> None:
+    """Register the `RetentionOracle` (U12) — the read-only fact snapshot.
+
+    Unlike the other ports there is deliberately **no fallback**: retention
+    decides what gets deleted, and a silently-default oracle would let an
+    unwired process delete on invented facts. `PortNotRegistered` is the safe
+    failure.
+    """
+
+    _PORTS["retention_oracle"] = factory
+
+
+def get_retention_oracle() -> Any:
+    """Return the registered `RetentionOracle`. Raises `PortNotRegistered`."""
+    return _build("retention_oracle")
 
 
 def reset_port_registry() -> None:

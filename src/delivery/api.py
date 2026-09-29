@@ -18,6 +18,8 @@ rather than a boolean.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from core.api import (
@@ -35,11 +37,68 @@ from delivery.errors import (
 )
 from delivery.models import Delivery, DeliveryAttempt
 
+@dataclass(frozen=True)
+class DeliveryFacts:
+    """What the ledger knows about one video (U12 `RetentionOracle`)."""
+
+    #: INV-2: True only when every named destination has reached a terminal
+    #: ledger state. `uploaded` is success; `failed` is a permanent failure and
+    #: nothing more will be attempted; `removed` was delivered and then taken
+    #: down by an operator, which is likewise final. `not_delivered`, `queued`
+    #: and `uploading` are all still in flight, and deletion is forbidden.
+    all_terminal: bool
+    uploaded_at: datetime | None
+    pending_destinations: tuple[int, ...]
+
+
+#: A delivery in one of these states will not change on its own.
+TERMINAL_DELIVERY_STATUSES = ("uploaded", "failed", "removed")
+
+
+def delivery_facts(
+    workspace, source_video_id: str, destination_ids
+) -> DeliveryFacts:
+    """Summarise the ledger for one video across the given destinations.
+
+    `destination_ids` is the pipeline's *enabled* set. A destination with no
+    ledger row at all is pending, not absent — nothing has been attempted, so
+    INV-2 forbids deleting the local file.
+    """
+    wanted = list(destination_ids)
+    rows = {
+        row.destination_id: row
+        for row in Delivery.objects.filter(
+            workspace=workspace,
+            source_video_id=source_video_id,
+            destination_id__in=wanted,
+        )
+    }
+    pending = tuple(
+        destination_id
+        for destination_id in wanted
+        if destination_id not in rows
+        or rows[destination_id].status not in TERMINAL_DELIVERY_STATUSES
+    )
+    uploaded = [
+        row.uploaded_at
+        for row in rows.values()
+        if row.uploaded_at is not None and row.destination_id not in pending
+    ]
+    return DeliveryFacts(
+        all_terminal=not pending,
+        uploaded_at=min(uploaded) if uploaded else None,
+        pending_destinations=pending,
+    )
+
+
 __all__ = [
+    "DeliveryFacts",
     "DeliveryResult",
     "ReconcileReport",
+    "TERMINAL_DELIVERY_STATUSES",
     "attempts_for",
     "deliver",
+    "delivery_facts",
     "get_delivery",
     "list_deliveries",
     "mark_removed",

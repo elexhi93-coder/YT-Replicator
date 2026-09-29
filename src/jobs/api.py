@@ -30,6 +30,35 @@ from core.api import TransientError, now_utc
 from jobs.errors import InvalidJobSetting, InvalidJobTransition, JobNotFound
 from jobs.models import INTENT_CHOICES, STATUS_UPLOADED, TERMINAL_STATUSES, Job
 
+def newer_completed_jobs(workspace, pipeline, after) -> int:
+    """Completed jobs of this pipeline created after `after` (D5).
+
+    Counts **jobs, not uploads**, so one video sent to two destinations is one
+    bundle rather than two — which is the difference between keeping N videos
+    and keeping N×destinations videos. Only successful completions count: a
+    job that failed does not make the previous one less interesting, and
+    counting it would let a queue of failures trigger deletion.
+    """
+    return Job.objects.filter(
+        workspace=workspace,
+        pipeline=pipeline,
+        status=STATUS_UPLOADED,
+        created_at__gt=after,
+    ).count()
+
+
+def find_job(job_id) -> Job | None:
+    """The job, or `None` if it is gone.
+
+    `get_job` raises, which is right for a request and wrong for a background
+    sweep: the U12 oracle asks about a job id recorded on an asset, and "no
+    such job" is an answer, not an error.
+    """
+    if job_id is None:
+        return None
+    return Job.objects.filter(pk=job_id).select_related("pipeline").first()
+
+
 __all__ = [
     "DEFAULT_LEASE_MINUTES",
     "MAX_ATTEMPTS",
@@ -38,8 +67,10 @@ __all__ = [
     "claim",
     "enqueue",
     "fail",
+    "find_job",
     "get_job",
     "list_jobs",
+    "newer_completed_jobs",
     "requeue_stale",
     "skip",
     "succeed",

@@ -33,6 +33,22 @@ from youtube.errors import (  # noqa: F401  (re-exported)
 from youtube.http import DAILY_UNIT_LIMIT
 from youtube.models import DestinationInventory, QuotaUsage
 
+
+def copy_confirmed(workspace, source_video_id: str) -> bool:
+    """True when a destination still holds this video, per the last sync.
+
+    Read-only, and deliberately conservative: the row is a *snapshot*, so an
+    unconfirmed copy is treated as absent. The retention last-copy gate (D3)
+    uses this to refuse deleting the only local file while the remote one is
+    merely unproven.
+    """
+    return DestinationInventory.objects.filter(
+        workspace=workspace,
+        matched_delivery__source_video_id=source_video_id,
+        is_present=True,
+    ).exists()
+
+
 __all__ = [
     "InventoryRow",
     "QuotaExhausted",
@@ -41,6 +57,7 @@ __all__ = [
     "UploadRejected",
     "account_upload",
     "claim_inventory",
+    "copy_confirmed",
     "default_http",
     "inventory_rows",
     "mark_absent",

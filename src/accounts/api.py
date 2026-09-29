@@ -140,10 +140,21 @@ def role_required(role: str):
     return decorator
 
 
+def get_workspace(workspace_id) -> Workspace | None:
+    """Resolve a workspace by primary key, or `None`.
+
+    Exists for the U12 `RetentionOracle`, which is handed a workspace *id* (it
+    is a port, so it cannot see model instances) and must still hand a real
+    `Workspace` to the sibling APIs that scope by tenant.
+    """
+    return Workspace.objects.filter(pk=workspace_id).first()
+
+
 __all__ = [
     "ROLE_RANK",
     "current_workspace",
     "get_default_workspace",
+    "get_workspace",
     "require_role",
     "role_required",
 ]

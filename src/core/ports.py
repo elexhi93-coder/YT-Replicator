@@ -249,3 +249,59 @@ class PassthroughTransformer:
             applied=False,
             fallback_reason="transformer_disabled",
         )
+
+
+# --- RetentionOracle (U12, INV-10) -------------------------------------------
+#
+# The retention evaluator's gates need four facts, each owned by a different
+# module: the policy lives on `pipeline`, terminality and `uploaded_at` on the
+# `delivery` ledger, the `after_n_jobs` count on `job`, and "is a destination
+# copy confirmed present" on `destination_inventory`. `media` may import
+# `core` and `accounts` only (docs/04 §2), so it cannot read any of them.
+#
+# Rather than widen four dependency arrows for four one-line reads, the
+# evaluator asks for one read-only snapshot. This is the same inversion the
+# Pillar 0 registry already performs for Port A: the consumer names the
+# capability it needs, the composition root (`ui.apps.ready`) supplies it.
+#
+# R2 still applies — this port performs **no database writes**. The evaluator
+# owns every write; the oracle only observes.
+
+
+@dataclass(frozen=True)
+class RetentionFacts:
+    """Everything the retention gates need that `media` does not own."""
+
+    #: 'keep' | 'immediate' | 'after_n_jobs' | 'after_hours', already resolved
+    #: through any per-destination override. 'keep' short-circuits the whole
+    #: evaluation (D1) and no other field is then consulted.
+    mode: str
+    retention_n: int
+    retention_hours: int
+    #: INV-2: True only when every *enabled* destination of the pipeline has
+    #: reached a terminal ledger state. False while anything is still pending,
+    #: queued or running — deletion is then strictly forbidden.
+    all_destinations_terminal: bool
+    #: True when at least one destination inventory row for this video is
+    #: present. Guards the last-copy gate: the only local copy is not deleted
+    #: while the remote copy is unconfirmed (D3).
+    destination_copy_present: bool
+    #: Newer *completed jobs of the same pipeline* — jobs, not uploads, so one
+    #: video × two destinations counts once (D5).
+    newer_completed_jobs: int
+    uploaded_at: datetime | None
+    #: Set when the facts could not be gathered (no job, no policy). The
+    #: evaluator refuses to delete on unknown facts, and says so.
+    unavailable_reason: str = ""
+
+
+@runtime_checkable
+class RetentionOracle(Protocol):
+    """Read-only view of the facts the retention gates depend on."""
+
+    def facts_for(
+        self, workspace_id: int, source_video_id: str, job_id: int | None
+    ) -> RetentionFacts:
+        """Gather the snapshot for one asset, or explain why it cannot."""
+        ...
+

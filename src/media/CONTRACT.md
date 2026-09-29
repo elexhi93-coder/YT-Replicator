@@ -37,9 +37,47 @@ the root would be a single missed `..` away.
 see which video failed and why. A digest mismatch additionally deletes the
 staged bytes: corrupt data is worse than no data.
 
+## 3. U12 additions — `media.retention`
+
+| Function | Purpose |
+|---|---|
+| `evaluate(asset, facts, *, other_local_copies=False, now, min_age_hours, backstop_days, grace_minutes)` | **Pure.** One asset → one `Decision`. No I/O, no writes, no sibling imports. |
+| `sweep(workspace, *, dry_run=True, actor, now, min_age_hours, grace_minutes)` | Phase one: decide and (unless dry-run) *schedule*. Never deletes. |
+| `execute_due(workspace, *, now, actor, dry_run=False)` | Phase two: the **only** place a retention deletion happens. |
+| `cancel(asset, *, actor, reason)` | Release a scheduled deletion before it fires. |
+| `pin(asset, *, until, reason, actor)` / `unpin(asset, *, actor)` | D4: the pin, and the only thing that releases it. |
+| `Decision` / `SweepReport` | Frozen: `delete`, `reason`, `delete_after`, `size_bytes`; and the sweep's `scheduled` / `skipped` / byte totals. |
+
+### The gate order (docs/05 §8) — not interchangeable
+
+1. `keep` short-circuits before anything else is asked (D1).
+2. **INV-2** — every *enabled* destination terminal. Nothing may override this.
+3. The pin holds (D4, F-10).
+4. **D3** — the last local copy survives an unconfirmed destination copy.
+5. The mode's condition (`immediate` / `after_n_jobs` / `after_hours`).
+6. The floors: min-age, then the max-age backstop (D6).
+
+### Three decisions worth defending
+
+**1. `evaluate()` takes `other_local_copies` as a parameter, not a query.** The
+first version queried for it, which made the "pure" function impure and
+untestable without a database — the tests caught it at once. The count is
+`media`'s own data, so it is an input, and the default `False` is the
+conservative reading (assume last copy).
+
+**2. The backstop is a condition, not a footnote.** D6 exists so a *stalled*
+pipeline cannot pin disk forever; an implementation where the backstop only
+annotated an already-satisfied mode would never fire at all. It can force
+deletion past the mode condition — but never past INV-2, the pin, or D3.
+
+**3. The min-age floor ships disabled (`DEFAULT_MIN_AGE_HOURS = 0`).** docs/05
+§8 G7 defines the gate, but no specification anywhere gives a default value.
+Inventing one would be a policy decision dressed up as a default.
+
 ## Deferred / out of scope
 
-- **U12** owns `delete_after` evaluation, pinning, and the `rehydrated` /
-  `delete_skipped` events. This unit only writes the fields.
-- **U25** evaluates `media_asset_due_idx`; `list_assets` is the read side until
-  then.
+- **U13** adds rehydrate and the star-as-pin bridge (`catalog_video.starred`
+  doubles as this pin — F-10). U12 reads `pinned_until` only.
+- **U22** owns the `app_setting` table, so the backstop reads
+  `APP_SETTING_DEFAULTS` until then.
+- **U21** is the Library page that surfaces the dry-run modal.

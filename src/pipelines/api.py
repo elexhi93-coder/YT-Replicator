@@ -17,6 +17,8 @@ rather than a database error.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from core.api import now_utc
 from pipelines.errors import (
     DownloadProfileNotFound,
@@ -36,7 +38,58 @@ from pipelines.models import (
     PipelineSource,
 )
 
+@dataclass(frozen=True)
+class RetentionPolicy:
+    """The retention rules that apply to one job's pipeline (docs/03 §6).
+
+    `pipelines` owns the policy, so `pipelines` resolves it. `media` cannot do
+    this itself — it may import no sibling (docs/04 §2) — so the read is
+    published here for the U12 `RetentionOracle` to call.
+    """
+
+    pipeline_id: int
+    mode: str
+    retention_n: int
+    retention_hours: int
+    #: Enabled destinations only. INV-2 is about *enabled* ones: a disabled
+    #: destination will never be delivered to, so waiting for it would pin
+    #: every file on disk forever.
+    enabled_destination_ids: tuple[int, ...]
+
+
+def retention_policy_for_job(job) -> RetentionPolicy:
+    """Resolve the effective retention policy for the job's pipeline.
+
+    The per-destination `retention_mode_override` applies **only when every
+    enabled destination agrees on the same value**. When they disagree there
+    is no single correct answer — one destination keeping files and another
+    pruning them cannot both be satisfied by one asset — so the pipeline
+    default stands and the ambiguity is visible in `docs/04` §6 rather than
+    silently resolved in favour of deleting sooner.
+    """
+    pipeline = job.pipeline
+    links = PipelineDestination.objects.filter(
+        pipeline=pipeline, destination__enabled=True
+    ).select_related("destination")
+    overrides = {link.retention_mode_override for link in links}
+    mode = pipeline.retention_mode
+    if len(overrides) == 1:
+        (only,) = overrides
+        if only is not None:
+            mode = only
+    return RetentionPolicy(
+        pipeline_id=pipeline.pk,
+        mode=mode,
+        retention_n=pipeline.retention_n,
+        retention_hours=pipeline.retention_hours,
+        enabled_destination_ids=tuple(
+            link.destination_id for link in links if link.destination.enabled
+        ),
+    )
+
+
 __all__ = [
+    "RetentionPolicy",
     "activate",
     "add_destination",
     "add_download_profile",
@@ -53,6 +106,7 @@ __all__ = [
     "list_pipeline_sources",
     "list_pipelines",
     "pause",
+    "retention_policy_for_job",
     "update_pipeline",
 ]
 
