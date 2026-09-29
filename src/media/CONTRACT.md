@@ -74,6 +74,43 @@ deletion past the mode condition — but never past INV-2, the pin, or D3.
 §8 G7 defines the gate, but no specification anywhere gives a default value.
 Inventing one would be a policy decision dressed up as a default.
 
+## 4. U13 additions — `media.rehydrate`
+
+| Function | Purpose |
+|---|---|
+| `rehydrate(workspace, source_video_id, *, source, job, max_height, prefer_format, actor)` | Bring a file back by the **cheapest route that can work**. Returns a `RehydrateResult` whose `.cost` is `free` / `downloaded` / `already_on_disk`. |
+| `relabel_if_recoverable(workspace, source_video_id, *, actor)` | Recover an archived file **without downloading**. `None` when impossible. |
+| `RehydrateResult` / `REHYDRATE_PIN_REASON` | What happened; the pin a rehydrated file arrives with. |
+| `media.api.relabel_offline_root(root)` | The mount-time half: re-attaching a root restores what is verifiably still there. |
+
+### The flow (docs/05 §7), cheapest branch first
+
+```
+D{archived file on a now-mounted root, digest still matches?}
+  yes -> verify + relabel, on_disk, NO DOWNLOAD
+  no  -> acquire() -> download -> verify -> rename
+          pinned_until = NULL, reason = "rehydrated"
+```
+
+### Three decisions worth defending
+
+**1. The relabel re-verifies the digest; it does not trust the row.** The root
+must be mounted, the file must still exist, *and* its bytes must still hash to
+what we recorded. Trusting the row would hand back an `on_disk` asset whose
+bytes are gone — the exact "the disk is full and nobody knows why" failure this
+project exists to remove. A tampered file stays `archive_offline`, and
+rehydrate downloads a fresh copy.
+
+**2. `pinned_until = NULL` is our infinity.** D4 says a rehydrated file is never
+auto-deleted. A real expiry would silently un-pin the file when it passed, and
+nothing would explain why retention suddenly started deleting things again.
+
+**3. "Gone" is recognised, "unavailable-ish" is not.** `_looks_unavailable`
+matches only explicit signals (private video, removed, no longer available). A
+network blip is *not* treated as a deleted video: guessing wrong in one
+direction retries a dead video forever, and guessing wrong in the other loses a
+recoverable file.
+
 ## Deferred / out of scope
 
 - **U13** adds rehydrate and the star-as-pin bridge (`catalog_video.starred`

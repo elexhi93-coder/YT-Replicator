@@ -29,6 +29,7 @@ from core.api import RetentionFacts
 from delivery.api import delivery_facts
 from jobs.api import find_job, newer_completed_jobs
 from pipelines.api import retention_policy_for_job
+from sources.api import is_starred
 from youtube.api import copy_confirmed
 
 
@@ -80,6 +81,7 @@ class RetentionOracle:
                 workspace, job.pipeline, job.created_at
             ),
             uploaded_at=ledger.uploaded_at,
+            starred=is_starred(workspace, source_video_id),
         )
 
 

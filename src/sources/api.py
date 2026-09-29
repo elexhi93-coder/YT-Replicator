@@ -35,10 +35,23 @@ __all__ = [
     "ScanOutcome",
     "add_source",
     "hydrate",
+    "is_starred",
     "list_sources",
     "scan",
     "source_provider_factory",
 ]
+
+
+def is_starred(workspace, source_video_id: str) -> bool:
+    """Is this video starred? F-10: a star *is* the retention pin.
+
+    Published for the U12 `RetentionOracle`, which is the only way `media` can
+    learn about a flag that lives on this module's table. A video we have never
+    scanned is not starred, so absence is `False` rather than an error.
+    """
+    return CatalogVideo.objects.filter(
+        workspace=workspace, video_id=source_video_id, starred=True
+    ).exists()
 
 
 def source_provider_factory():

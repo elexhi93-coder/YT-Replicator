@@ -256,6 +256,20 @@ class TestScan:
         row = CatalogVideo.objects.get(source=source, video_id=VIDEO_ID)
         assert row.starred and row.ignored  # the operator's call, never ours to reset
 
+    def test_the_star_is_readable_as_a_retention_pin(self, workspace, fake_provider):
+        # F-10: `starred` doubles as the retention pin, so `media` must be able
+        # to ask about it without importing this module. Absence is `False`,
+        # not an error — a video we never scanned is not starred.
+        fake_provider._items = [_item()]
+        source = api.add_source(workspace, CHANNEL_URL)
+        api.scan(source)
+        assert api.is_starred(workspace, VIDEO_ID) is False
+        CatalogVideo.objects.filter(source=source).update(starred=True)
+        assert api.is_starred(workspace, VIDEO_ID) is True
+
+    def test_an_unscanned_video_is_simply_not_starred(self, workspace):
+        assert api.is_starred(workspace, "neverScanned1") is False
+
     def test_availability_is_translated_to_our_vocabulary(self, workspace, fake_provider):
         fake_provider._items = [
             _item("a" * 11, availability="unlisted"),

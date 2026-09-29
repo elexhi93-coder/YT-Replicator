@@ -42,6 +42,8 @@ __all__ = [
     "list_events",
     "list_storage_roots",
     "pick_root",
+    "relabel_offline_root",
+    "relabel_offline_root",
     "set_mounted",
 ]
 
@@ -88,7 +90,11 @@ def set_mounted(root: StorageRoot, mounted: bool) -> StorageRoot:
     root.is_mounted = mounted
     root.last_checked_at = now_utc()
     root.save(update_fields=["is_mounted", "last_checked_at", "updated_at"])
-    if not mounted:
+    if mounted:
+        # Re-attaching a cold drive is the moment F-52 is paid off: what is
+        # verifiably still on it comes back as `on_disk` without a re-download.
+        relabel_offline_root(root)
+    else:
         archive_offline_root(root)
     return root
 
@@ -109,6 +115,39 @@ def archive_offline_root(root: StorageRoot) -> int:
         )
     assets.update(state=MediaAsset.STATE_ARCHIVE_OFFLINE)
     return count
+
+
+def relabel_offline_root(root: StorageRoot) -> int:
+    """Re-attach: bring back the assets whose files are provably still there.
+
+    The counterpart of `archive_offline_root`. An asset goes back to `on_disk`
+    only when its file still exists **and** still matches the digest we
+    recorded — a drive that came back with a different file, or with the file
+    deleted while it was away, must not be relabelled into a state that claims
+    we hold a verified copy. Those stay `archive_offline`, and rehydrate will
+    download a fresh copy (F-52).
+    """
+    restored = 0
+    for asset in MediaAsset.objects.filter(
+        storage_root=root, state=MediaAsset.STATE_ARCHIVE_OFFLINE
+    ):
+        path = Path(asset.absolute_path())
+        if not path.exists():
+            continue
+        if asset.sha256 and _sha256(path) != asset.sha256:
+            continue
+        asset.state = MediaAsset.STATE_ON_DISK
+        asset.save(update_fields=["state", "updated_at"])
+        MediaEvent.objects.create(
+            workspace=asset.workspace,
+            media_asset=asset,
+            source_video_id=asset.source_video_id,
+            event="rehydrated",
+            reason="storage root re-attached; file verified on disk",
+            bytes=asset.size_bytes,
+        )
+        restored += 1
+    return restored
 
 
 def free_space(root: StorageRoot) -> int:

@@ -290,6 +290,10 @@ class RetentionFacts:
     #: video × two destinations counts once (D5).
     newer_completed_jobs: int
     uploaded_at: datetime | None
+    #: F-10: `catalog_video.starred` doubles as the retention pin. It lives on
+    #: another module's table, so like everything else here it arrives as a
+    #: fact rather than a join.
+    starred: bool = False
     #: Set when the facts could not be gathered (no job, no policy). The
     #: evaluator refuses to delete on unknown facts, and says so.
     unavailable_reason: str = ""

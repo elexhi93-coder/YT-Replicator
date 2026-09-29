@@ -135,7 +135,11 @@ def evaluate(
     if not facts.all_destinations_terminal:
         return Decision(False, "destinations not terminal (INV-2)")
 
-    # D4 / F-10 — an explicit pin outranks every policy below it.
+    # D4 / F-10 — an explicit pin outranks every policy below it, and so does a
+    # star, which is the legacy's pin flag carried forward rather than a
+    # second mechanism (F-10: "starred doubles as our pin flag").
+    if facts.starred:
+        return Decision(False, "starred (F-10 pin)")
     if asset.pinned_until is not None and asset.pinned_until > now:
         return Decision(False, f"pinned until {asset.pinned_until.isoformat()}")
 

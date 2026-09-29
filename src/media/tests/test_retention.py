@@ -91,6 +91,22 @@ class TestGateOrder:
         assert decision.delete is False
         assert "facts unavailable" in decision.reason
 
+    def test_a_star_is_a_pin(self):
+        # F-10: the legacy's starred flag *is* our pin flag, not a second
+        # mechanism that has to be kept in step with this one. The flag itself
+        # lives on another module's table and arrives here as an oracle fact.
+        decision = decide(starred=True)
+        assert decision.delete is False
+        assert "starred" in decision.reason
+
+    def test_a_star_outranks_the_backstop(self):
+        # Not even the hard ceiling may override a pin.
+        old = FakeAsset(age_days=30)
+        decision = retention.evaluate(
+            old, facts(starred=True), now=NOW, backstop_days=7
+        )
+        assert decision.delete is False
+
 
 class TestModes:
     def test_immediate_deletes_once_the_gates_pass(self):
