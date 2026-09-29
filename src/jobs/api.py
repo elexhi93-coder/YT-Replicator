@@ -71,6 +71,7 @@ __all__ = [
     "get_job",
     "list_jobs",
     "newer_completed_jobs",
+    "release",
     "requeue_stale",
     "skip",
     "succeed",
@@ -243,6 +244,36 @@ def fail(job: Job, error: BaseException, *, retry: bool = True) -> Job:
             "error_message",
             "finished_at",
             "claim_expires_at",
+            "updated_at",
+        ]
+    )
+    return job
+
+
+def release(job: Job, *, reason: str = "") -> Job:
+    """Hand a claimed job back to the queue **without** counting an attempt.
+
+    This is the pause path (docs/05 §10). A full disk, an exhausted quota or a
+    paused pipeline must not consume one of a video's five attempts, and must
+    not write a backoff — the job is not failing, it is simply not due yet.
+    The reason is kept on the row so the Queue can show *why* nothing is
+    moving, which is the question an operator actually has.
+    """
+    if job.status not in ("claimed", "downloading", "downloaded", "uploading"):
+        raise InvalidJobTransition(job.status, "queued")
+    job.status = "queued"
+    job.claimed_by = ""
+    job.claimed_at = None
+    job.claim_expires_at = None
+    if reason:
+        job.error_message = reason
+    job.save(
+        update_fields=[
+            "status",
+            "claimed_by",
+            "claimed_at",
+            "claim_expires_at",
+            "error_message",
             "updated_at",
         ]
     )

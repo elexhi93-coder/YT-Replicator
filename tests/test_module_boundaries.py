@@ -38,7 +38,7 @@ MODULES = frozenset(
 # `core`/`accounts` (every domain module takes both) and `delivery`'s row.
 ALLOWED_IMPORTS: dict[str, frozenset[str]] = {
     "ui": MODULES - {"ui"},
-    "worker": frozenset({"jobs", "media", "delivery"}),
+    "worker": frozenset({"core", "accounts", "jobs", "media", "delivery"}),
     "delivery": frozenset({"core", "accounts", "youtube", "jobs"}),
     "youtube": frozenset({"core", "accounts", "credentials"}),
     "media": frozenset({"core", "accounts"}),

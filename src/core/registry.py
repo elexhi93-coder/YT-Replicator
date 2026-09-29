@@ -29,10 +29,12 @@ __all__ = [
     "get_metadata_transformer",
     "get_retention_oracle",
     "get_source_provider",
+    "get_upload_planner",
     "register_destination_platform",
     "register_metadata_transformer",
     "register_retention_oracle",
     "register_source_provider",
+    "register_upload_planner",
     "reset_port_registry",
 ]
 
@@ -106,6 +108,21 @@ def register_retention_oracle(factory: Factory) -> None:
 def get_retention_oracle() -> Any:
     """Return the registered `RetentionOracle`. Raises `PortNotRegistered`."""
     return _build("retention_oracle")
+
+
+def register_upload_planner(factory: Factory) -> None:
+    """Register the `UploadPlanner` (U14) — how one job's upload is assembled.
+
+    Like the retention oracle this has **no fallback**: an unwired planner must
+    fail loudly rather than upload with invented metadata.
+    """
+
+    _PORTS["upload_planner"] = factory
+
+
+def get_upload_planner() -> Any:
+    """Return the registered `UploadPlanner`. Raises `PortNotRegistered`."""
+    return _build("upload_planner")
 
 
 def reset_port_registry() -> None:

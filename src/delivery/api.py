@@ -104,6 +104,7 @@ __all__ = [
     "mark_removed",
     "parse_marker",
     "reconcile",
+    "stalled_uploads",
 ]
 
 ORIGIN_SYSTEM = "system"
@@ -285,6 +286,19 @@ def reconcile(destination) -> ReconcileReport:
         unclaimed_present=tuple(sorted(unclaimed)),
         missing_expected=tuple(sorted(missing)),
         marker_mismatch=tuple(sorted(mismatch)),
+    )
+
+
+def stalled_uploads(*, now=None) -> list[Delivery]:
+    """Deliveries left in `uploading` by a worker that died mid-transfer.
+
+    The recovery sweep (docs/05 §9) reconciles each of these rather than
+    retrying: we do not know whether the bytes landed, and a duplicate upload
+    on someone else's channel is worse than an API unit spent asking.
+    """
+    moment = now or now_utc()
+    return list(
+        Delivery.objects.filter(status="uploading", updated_at__lt=moment).order_by("id")
     )
 
 

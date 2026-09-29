@@ -31,10 +31,19 @@ from media.errors import (
 )
 from media.models import MediaAsset, MediaEvent, StorageRoot
 
+# Re-exported for the U14 worker, which may reach this module only through
+# `media.api` (INV-12). `rehydrate` is part of media's published surface — it
+# is how a file comes back — and `NoStorageSpace` is the error a caller has to
+# be able to recognise in order to treat a full disk as a pause.
+from media.rehydrate import RehydrateResult, rehydrate  # noqa: E402,F401
+
 __all__ = [
+    "NoStorageSpace",
+    "RehydrateResult",
     "acquire",
     "add_storage_root",
     "archive_offline_root",
+    "fail_stale_downloads",
     "free_space",
     "get_asset",
     "hygiene",
@@ -43,7 +52,7 @@ __all__ = [
     "list_storage_roots",
     "pick_root",
     "relabel_offline_root",
-    "relabel_offline_root",
+    "rehydrate",
     "set_mounted",
 ]
 
@@ -281,6 +290,31 @@ def acquire(
     )
     _event(asset, "verified", bytes=asset.size_bytes)
     return asset
+
+
+def fail_stale_downloads(*, now=None) -> int:
+    """Mark downloads that never finished as `failed`, and say why.
+
+    Called by the worker's restart recovery (docs/05 §9). A partial file is
+    never valid media, so an asset left in `downloading` is a failed download
+    rather than a slow one — and `hygiene()` reclaims the bytes afterwards.
+    """
+    moment = now or now_utc()
+    # Collect the ids *first*. Writing each row with `save()` moves its
+    # `updated_at` to now, so a follow-up queryset filtered on
+    # `updated_at__lt` would match nothing and silently skip the state change.
+    ids = list(
+        MediaAsset.objects.filter(
+            state=MediaAsset.STATE_DOWNLOADING, updated_at__lt=moment
+        ).values_list("pk", flat=True)
+    )
+    if not ids:
+        return 0
+    MediaAsset.objects.filter(pk__in=ids).update(
+        state=MediaAsset.STATE_FAILED,
+        delete_reason="download interrupted; worker did not survive",
+    )
+    return len(ids)
 
 
 def hygiene(workspace, *, actor: str = "system") -> dict:

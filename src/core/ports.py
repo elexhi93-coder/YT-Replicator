@@ -251,6 +251,61 @@ class PassthroughTransformer:
         )
 
 
+@dataclass(frozen=True)
+class UploadTarget:
+    """One destination to upload to, and whether we may upload to it right now."""
+
+    #: A `pipelines.Destination` instance. The port hands back an *instance* so
+    #: the worker never has to import the module that owns it.
+    destination: object
+    privacy: str
+    #: docs/05 §10 — quota is a pause, not a failure. A target that is out of
+    #: quota is carried, not failed, and the job returns to the queue.
+    quota_ok: bool
+    quota_note: str = ""
+
+
+@dataclass(frozen=True)
+class UploadPlan:
+    """Everything needed to upload one video, assembled by the composition root.
+
+    Assembling it needs three modules the worker may not import: `pipelines`
+    (which destinations, and their overrides), `sources` (the catalog title,
+    description and tags) and `youtube` (today's quota). The worker asks `core`
+    for the plan instead of importing any of them.
+    """
+
+    workspace: object
+    source_video_id: str
+    media_path: Path
+    title: str
+    description: str
+    tags: tuple[str, ...]
+    category_id: str
+    max_height: int
+    targets: tuple[UploadTarget, ...]
+    #: A genuine pause — nothing may start, and the job goes back untouched.
+    blocked_reason: str = ""
+    #: No verified media *yet*. Deliberately separate from `blocked_reason`:
+    #: before the first download this is the normal state, not a pause, and a
+    #: gate that read it as one would block the very first job forever.
+    no_media: bool = False
+
+    @property
+    def ready(self) -> tuple[UploadTarget, ...]:
+        """The targets that may be uploaded to now (quota gate applied)."""
+        return tuple(t for t in self.targets if t.quota_ok)
+
+
+@runtime_checkable
+class UploadPlanner(Protocol):
+    """Read-only assembly of one job's upload plan."""
+
+    def plan_for(self, job) -> UploadPlan:
+        """Gather the plan, or explain in `blocked_reason` why it is not ready."""
+        ...
+
+
 # --- RetentionOracle (U12, INV-10) -------------------------------------------
 #
 # The retention evaluator's gates need four facts, each owned by a different

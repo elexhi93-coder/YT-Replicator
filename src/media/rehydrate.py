@@ -31,7 +31,6 @@ import hashlib
 from pathlib import Path
 
 from core.api import ItemUnavailable
-from media.api import acquire
 from media.models import MediaAsset, MediaEvent
 
 __all__ = [
@@ -88,6 +87,11 @@ def rehydrate(
         return RehydrateResult(recovered, relabelled=True, downloaded=False)
 
     try:
+        # Imported here, not at module scope: `media.api` re-exports
+        # `rehydrate` so the worker can reach it through the published
+        # surface, and a top-level import would close that into a cycle.
+        from media.api import acquire
+
         asset = acquire(
             workspace,
             source_video_id,

@@ -16,6 +16,8 @@ throttle leaves the row untouched and the error propagates typed.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from django.utils import timezone
 
 from core.api import SourceRef, VideoRef, get_source_provider, now_utc
@@ -31,15 +33,53 @@ from sources.urls import normalize_source_url
 # annotations`), so naming the type in prose costs nothing.
 
 __all__ = [
+    "CatalogMetadata",
     "HydrateOutcome",
     "ScanOutcome",
     "add_source",
+    "catalog_metadata",
     "hydrate",
     "is_starred",
     "list_sources",
     "scan",
     "source_provider_factory",
 ]
+
+
+@dataclass(frozen=True)
+class CatalogMetadata:
+    """What we know about a video, for an upload's title/description/tags.
+
+    Published for the U14 `UploadPlanner`, which is how `worker` learns the
+    catalog's contents without importing `sources`. A video we never scanned
+    yields `None` rather than a row of empty strings, so the planner can decide
+    honestly instead of uploading a video titled "".
+    """
+
+    title: str
+    description: str
+    tags: tuple[str, ...]
+    category_id: str
+    duration_sec: int | None
+    found: bool = True
+
+
+def catalog_metadata(workspace, source_video_id: str) -> CatalogMetadata | None:
+    """The catalog row for this video, or `None` if it was never scanned."""
+    row = (
+        CatalogVideo.objects.filter(workspace=workspace, video_id=source_video_id)
+        .order_by("-id")
+        .first()
+    )
+    if row is None:
+        return None
+    return CatalogMetadata(
+        title=row.title or source_video_id,
+        description=row.description or "",
+        tags=tuple(row.tags or ()),
+        category_id=row.category_id or "",
+        duration_sec=row.duration_sec,
+    )
 
 
 def is_starred(workspace, source_video_id: str) -> bool:

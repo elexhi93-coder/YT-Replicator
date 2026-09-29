@@ -88,7 +88,42 @@ def retention_policy_for_job(job) -> RetentionPolicy:
     )
 
 
+@dataclass(frozen=True)
+class EnabledDestination:
+    """A destination this pipeline actually uploads to, with its overrides."""
+
+    destination: object
+    privacy: str
+    #: `Destination.daily_max` — v1's per-destination daily cap (F-07). It lives
+    #: on the destination rather than the link: `PipelineDestination` has no cap
+    #: of its own in this schema, so the destination's value is the policy.
+    daily_max: int
+
+
+def enabled_destinations(pipeline: Pipeline) -> list[EnabledDestination]:
+    """The pipeline's upload targets, in priority order.
+
+    "Enabled" means both the link and the destination itself: a disabled
+    destination will never be delivered to, so the worker must not try
+    (docs/05 §10 — a pause clears when a destination is re-enabled).
+    """
+    links = (
+        PipelineDestination.objects.filter(pipeline=pipeline, destination__enabled=True)
+        .select_related("destination")
+        .order_by("priority", "id")
+    )
+    return [
+        EnabledDestination(
+            destination=link.destination,
+            privacy=link.privacy_override or link.destination.default_privacy,
+            daily_max=link.destination.daily_max,
+        )
+        for link in links
+    ]
+
+
 __all__ = [
+    "EnabledDestination",
     "RetentionPolicy",
     "activate",
     "add_destination",
@@ -99,6 +134,7 @@ __all__ = [
     "delete_pipeline",
     "detach_destination",
     "detach_source",
+    "enabled_destinations",
     "get_pipeline",
     "list_destinations",
     "list_download_profiles",

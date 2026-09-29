@@ -17,11 +17,19 @@ class UiConfig(AppConfig):
     def ready(self) -> None:
         # Idempotent: `ready()` may run more than once in a test process, and
         # re-registering simply replaces the factory (core.registry semantics).
-        from core.api import register_retention_oracle, register_source_provider
+        from core.api import (
+            register_retention_oracle,
+            register_source_provider,
+            register_upload_planner,
+        )
         from sources.api import source_provider_factory
+        from ui.planner import upload_planner_factory
         from ui.retention import retention_oracle_factory
 
         register_source_provider(source_provider_factory)
         # U12: the evaluator may not import `pipelines`/`delivery`/`jobs`/
         # `youtube`, so their reads are composed here and handed over as a port.
         register_retention_oracle(retention_oracle_factory)
+        # U14: the same for the worker, which may not import `pipelines`,
+        # `sources` or `youtube` either.
+        register_upload_planner(upload_planner_factory)
