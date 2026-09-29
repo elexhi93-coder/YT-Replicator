@@ -59,6 +59,31 @@ def find_job(job_id) -> Job | None:
     return Job.objects.filter(pk=job_id).select_related("pipeline").first()
 
 
+def purge_plan(workspace) -> dict:
+    """What `purge_runtime` would remove, without removing it.
+
+    A dry run that computes its own answer from the same query the real thing
+    uses — a plan written separately from the action is a plan that can lie.
+    """
+    return {
+        "jobs": Job.objects.filter(workspace=workspace).count(),
+        "skipped": Job.objects.filter(workspace=workspace, status="skipped").count(),
+    }
+
+
+def purge_runtime(workspace) -> dict:
+    """Delete this workspace's *work* — never its history.
+
+    The queue is runtime data: it is safe to lose and expensive to keep. The
+    delivery ledger is not touched at all, and neither is anything that
+    describes configuration, because those are the record (F-53: "a clean
+    slate without losing upload history").
+    """
+    counts = purge_plan(workspace)
+    Job.objects.filter(workspace=workspace).delete()
+    return counts
+
+
 __all__ = [
     "DEFAULT_LEASE_MINUTES",
     "MAX_ATTEMPTS",
@@ -71,6 +96,8 @@ __all__ = [
     "get_job",
     "list_jobs",
     "newer_completed_jobs",
+    "purge_plan",
+    "purge_runtime",
     "release",
     "requeue_stale",
     "skip",

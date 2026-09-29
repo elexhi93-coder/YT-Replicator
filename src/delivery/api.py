@@ -103,6 +103,7 @@ __all__ = [
     "list_deliveries",
     "mark_removed",
     "parse_marker",
+    "purge_plan",
     "reconcile",
     "stalled_uploads",
 ]
@@ -287,6 +288,20 @@ def reconcile(destination) -> ReconcileReport:
         missing_expected=tuple(sorted(missing)),
         marker_mismatch=tuple(sorted(mismatch)),
     )
+
+
+def purge_plan(workspace) -> dict:
+    """What a runtime purge would remove — and what it would deliberately keep.
+
+    Returning the kept counts as well as the removed ones is the point: an
+    operator reading a dry run must be able to see that the ledger survives,
+    not be asked to trust it (F-53, D-12).
+    """
+    return {
+        "deliveries_kept": Delivery.objects.filter(workspace=workspace).count(),
+        "attempts_kept": DeliveryAttempt.objects.filter(workspace=workspace).count(),
+        "purgeable": 0,
+    }
 
 
 def stalled_uploads(*, now=None) -> list[Delivery]:

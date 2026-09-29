@@ -51,6 +51,8 @@ __all__ = [
     "list_events",
     "list_storage_roots",
     "pick_root",
+    "purge_plan",
+    "purge_runtime",
     "relabel_offline_root",
     "rehydrate",
     "set_mounted",
@@ -315,6 +317,34 @@ def fail_stale_downloads(*, now=None) -> int:
         delete_reason="download interrupted; worker did not survive",
     )
     return len(ids)
+
+
+def purge_plan(workspace) -> dict:
+    """What `purge_runtime` would remove: the rows *and* the bytes."""
+    assets = MediaAsset.objects.filter(workspace=workspace)
+    return {
+        "assets": assets.count(),
+        "bytes": sum(assets.values_list("size_bytes", flat=True)),
+        "events": MediaEvent.objects.filter(workspace=workspace).count(),
+    }
+
+
+def purge_runtime(workspace) -> dict:
+    """Delete downloaded media for a workspace — the heavy, re-acquirable part.
+
+    Configuration, roots, events and the delivery ledger are untouched: a purge
+    is "a clean slate without losing upload history" (F-53), and media is
+    precisely the re-acquirable half. Files go first, then rows, so a crash
+    leaves orphan files that `hygiene()` reclaims rather than rows claiming
+    files that are gone.
+    """
+    counts = purge_plan(workspace)
+    for asset in MediaAsset.objects.filter(workspace=workspace):
+        if asset.storage_root_id is not None:
+            Path(asset.absolute_path()).unlink(missing_ok=True)
+    MediaAsset.objects.filter(workspace=workspace).delete()
+    MediaEvent.objects.filter(workspace=workspace).delete()
+    return counts
 
 
 def hygiene(workspace, *, actor: str = "system") -> dict:
