@@ -595,12 +595,19 @@ CREATE TABLE destination_inventory (
     last_observed_at     timestamptz NOT NULL DEFAULT now(),
     UNIQUE (destination_id, destination_video_id)
 );
-CREATE INDEX destination_inventory_unclaimed_idx
+CREATE INDEX inv_unclaimed_idx
     ON destination_inventory (destination_id, matched_delivery_id)
     WHERE matched_delivery_id IS NULL;
-CREATE INDEX destination_inventory_title_idx
+CREATE INDEX inv_title_idx
     ON destination_inventory (destination_id, title);
 ```
+
+> **Index names shortened (2026-09-28, U09).** The two names above were
+> `destination_inventory_unclaimed_idx` and `destination_inventory_title_idx`.
+> Django caps index names at 30 characters and refused to migrate with the
+> original spelling, so the migration wins (docs/03 §1) and this section was
+> corrected in the same change. The columns, predicates and partial conditions
+> are unchanged.
 
 This table is the capability the legacy never had (D-13). Three rules govern it:
 

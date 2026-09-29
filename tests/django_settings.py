@@ -17,6 +17,7 @@ INSTALLED_APPS = [
     "sources",
     "pipelines",
     "jobs",
+    "youtube",
     "ui",
 ]
 
