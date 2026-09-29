@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     "pipelines",
     "jobs",
     "youtube",
+    "delivery",
     "ui",
 ]
 

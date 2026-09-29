@@ -21,13 +21,28 @@ from django.db import transaction
 from django.utils import timezone
 
 from core.api import ChannelRef, get_destination_platform, quota_day_string
-from youtube.errors import QuotaExhausted
+# Re-exported: `delivery` must be able to tell a throttle from a rejection to
+# record the right attempt outcome, and it may not import `youtube.errors`
+# (INV-12). The published surface therefore carries them.
+from youtube.errors import (  # noqa: F401  (re-exported)
+    QuotaExhausted,
+    Throttled,
+    TokenRevoked,
+    UploadRejected,
+)
 from youtube.http import DAILY_UNIT_LIMIT
 from youtube.models import DestinationInventory, QuotaUsage
 
 __all__ = [
+    "InventoryRow",
+    "QuotaExhausted",
+    "Throttled",
+    "TokenRevoked",
+    "UploadRejected",
     "account_upload",
+    "claim_inventory",
     "default_http",
+    "inventory_rows",
     "mark_absent",
     "probe_auth",
     "quota_remaining",
@@ -37,6 +52,67 @@ __all__ = [
     "unclaimed_inventory",
     "upload",
 ]
+
+
+class InventoryRow:
+    """A frozen read of one `destination_inventory` row.
+
+    `delivery` reconciles against the channel, so it needs to see inventory —
+    but it may not import `youtube.models` (INV-12). This is the published
+    shape instead: read-only, so the ledger cannot mutate another module's
+    table by accident. Writes go through `claim_inventory`.
+    """
+
+    __slots__ = (
+        "destination_video_id",
+        "is_present",
+        "provenance_marker",
+        "matched_delivery_id",
+        "title",
+    )
+
+    def __init__(
+        self,
+        destination_video_id: str,
+        is_present: bool,
+        provenance_marker: str | None,
+        matched_delivery_id: int | None,
+        title: str = "",
+    ) -> None:
+        self.destination_video_id = destination_video_id
+        self.is_present = is_present
+        self.provenance_marker = provenance_marker
+        self.matched_delivery_id = matched_delivery_id
+        self.title = title
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return f"InventoryRow({self.destination_video_id!r}, present={self.is_present})"
+
+
+def inventory_rows(destination) -> tuple[InventoryRow, ...]:
+    """Every inventory row for a destination, present or not."""
+    return tuple(
+        InventoryRow(
+            destination_video_id=row.destination_video_id,
+            is_present=row.is_present,
+            provenance_marker=row.provenance_marker,
+            matched_delivery_id=row.matched_delivery_id,
+            title=row.title,
+        )
+        for row in DestinationInventory.objects.filter(destination=destination)
+    )
+
+
+def claim_inventory(destination, video_id: str, delivery) -> int:
+    """Point an inventory row at the delivery that uploaded it.
+
+    Ledger matching, not a title guess: only the provenance marker is proof of
+    authorship, and a fingerprint match is a suggestion (docs/06). Returns the
+    number of rows claimed, so a caller can tell "claimed" from "not there yet".
+    """
+    return DestinationInventory.objects.filter(
+        destination=destination, destination_video_id=video_id
+    ).update(matched_delivery=delivery)
 
 
 def default_http():

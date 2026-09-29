@@ -59,11 +59,17 @@ class DestinationInventory(models.Model):
     #: in history. Extracting it is this module's job; interpreting it belongs
     #: to `delivery` (Pillar 0 R5).
     provenance_marker = models.TextField(null=True, blank=True)
-    #: **Not a foreign key yet.** docs/03 §8 declares
-    #: `REFERENCES delivery(id)`, but `delivery` is created by U10. The column
-    #: exists so the table matches the schema; U10's migration adds the
-    #: constraint. See CONTRACT §5.1.
-    matched_delivery_id = models.BigIntegerField(null=True, blank=True)
+    #: `REFERENCES delivery(id) ON DELETE SET NULL` (docs/03 §8). U09 shipped
+    #: this as a plain column because `delivery` did not exist yet; U10 turned
+    #: it into the foreign key the schema always declared. The attname is still
+    #: `matched_delivery_id`, so no query or index had to change.
+    matched_delivery = models.ForeignKey(
+        "delivery.Delivery",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="inventory_rows",
+    )
     match_method = models.TextField(
         choices=MATCH_METHODS, default="none"
     )
