@@ -46,8 +46,12 @@ env/
 
 # ── Runtime output ────────────────────────────────────────────
 # Media is a cache, not a record (INV-2 / P2): re-downloadable, so not tracked.
+# These are root-anchored on purpose. A bare `media/` also matched `src/media/`
+# — the U11 storage *package* — and silently kept the whole module out of every
+# commit. `/media/` matches only the top-level download cache.
 downloads/
-media/
+/media/
+/staging/
 logs/
 *.part
 *.log

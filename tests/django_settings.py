@@ -19,6 +19,7 @@ INSTALLED_APPS = [
     "jobs",
     "youtube",
     "delivery",
+    "media",
     "ui",
 ]
 
